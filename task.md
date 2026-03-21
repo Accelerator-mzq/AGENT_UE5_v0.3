@@ -12,6 +12,7 @@
 3. 每个 TASK 末尾有【验收标准】——全部通过才可进入下一个 TASK
 4. 标注 [UE5 环境] 需要 UE5.5.4 Editor 运行；[C++ 编译] 需要 VS2022/Xcode/clang
 5. 未标注的任务可在纯 Python 环境中完成
+6. PowerShell 读取文本必须使用 `Get-Content -Encoding UTF8`；写入文本必须使用 `Set-Content/Add-Content -Encoding UTF8`
 
 ## 任务总览
 
@@ -883,7 +884,7 @@ Step 6: 验证写后读回容差
 ```
 目标：实现无头执行入口（UAgentBridgeCommandlet）和 UAT 子进程封装（FUATRunner）。
 Commandlet 使系统可在命令行无 GUI 环境中执行 Spec / 测试 / 单工具。
-UATRunner 封装 UAT 的 BuildCookRun / RunTests / RunGauntlet 命令。
+UATRunner 封装 UAT 的 BuildCookRun（含 -RunAutomationTest/-RunAutomationTests 参数）/ RunGauntlet 命令。
 两者组合打通 CI/CD 执行路径：Gauntlet → Editor → Commandlet → Subsystem。
 
 前置依赖：TASK 05 完成（全部 Bridge 接口可用）
@@ -1041,6 +1042,17 @@ Main(Params) 主入口：
         FPaths::GetProjectFilePath(), Platform, Configuration)
     return ExecuteUAT(Args, bSync)
 
+  RunAutomationTests(Filter, ReportPath, bSync):
+    Args = FString::Printf("BuildCookRun -project=%s -run -editortest -unattended -nullrhi -NoP4",
+        FPaths::GetProjectFilePath())
+    if (Filter 非空):
+      Args += FString::Printf(" -RunAutomationTest=%s", Filter)
+    else:
+      Args += " -RunAutomationTests"
+    if (ReportPath 非空):
+      Args += FString::Printf(" -addcmdline=\"-ReportExportPath=\\\"%s\\\"\"", ReportPath)
+    return ExecuteUAT(Args, bSync)
+
   RunGauntlet(TestConfigName, bSync):
     Args = FString::Printf("RunGauntlet -project=%s -Test=%s -unattended",
         FPaths::GetProjectFilePath(), TestConfigName)
@@ -1082,6 +1094,11 @@ Step 5: 验证 UATRunner 可用性
 Step 6: 测试 Commandlet 模式 2（运行测试——需要 TASK 07 完成后才有测试可运行）
   UE5Editor-Cmd.exe MyProject.uproject -run=AgentBridge -RunTests=Project.AgentBridge.L1 -Unattended -NoPause
   预期: 运行 L1 测试 → exit code 0（全部通过）或 exit code 1（有失败）
+
+Step 7: 测试 UAT 自动化入口（UE5.5 标准）
+  RunUAT.bat BuildCookRun -project=MyProject.uproject -run -editortest -RunAutomationTest=Project.AgentBridge.L1 -unattended -nullrhi -NoP4
+  预期: 能找到对应测试并执行，AutomationTool ExitCode=0
+  注意: 不使用 `RunUAT.bat RunAutomationTests ...`（当前 UE5.5 环境无该子命令）
 
 【验收标准】
 - 编译零 error
@@ -1357,28 +1374,254 @@ Step 5: 验证错误路径不是误报
 ## TASK 08：实现 L2 Automation Spec（3 个 BDD 闭环）[UE5 环境 + C++ 编译]
 
 ```
-目标：实现 3 个 L2 闭环验证 Automation Spec。
+目标：实现 3 个 L2 闭环验证 Automation Spec（BDD 语法）。
+L2 与 L1 的核心区别：L1 验证"单接口返回值正确"，L2 验证"多接口协作的写-读-验闭环一致"。
+具体来说：写接口执行 → 查询接口读回 → 逐字段容差比对 → Undo 回滚 → 再次读回确认恢复。
 
-前置依赖：TASK 07 完成
+前置依赖：TASK 07 完成（L1 全部绿灯——确保单接口没问题后再测多接口协作）
 
-先读：Docs/mvp_smoke_test_plan.md（第 5 节）
+提案同步更新（2026-03-21）：
+- 最初提案中的 L2 `SmokeFilter`，在 UE5.5 命令行入口（`-ExecCmds=Automation RunTests`）存在运行期断言风险。
+- 为统一“可编译 + 可命令行稳定执行 + 可 CI 复现”的验收口径，L2 Test Flag 正式统一为 `ProductFilter`。
+- Task08 的最终验收入口统一为：Console 两段式（L1→L2）与 UAT `BuildCookRun -run -editortest -RunAutomationTest=...`。
+- 旧口径（`SmokeFilter` + `-run=Automation` / `RunUAT RunAutomationTests`）不再作为通过标准。
 
-创建 L2_ClosedLoopSpecs.spec.cpp，使用 BEGIN_DEFINE_SPEC 宏。
-Test Flag: EditorContext + SmokeFilter
+先读这些文件：
+- Docs/mvp_smoke_test_plan.md（§5 L2 BDD 语法 + 容差标准 + §5.4 L2 vs L1 区别）
+  读完应掌握：BEGIN_DEFINE_SPEC 宏用法 / Describe-BeforeEach-It-AfterEach 语法 /
+  ProductFilter 标签用法（UE5.5 控制台稳定路径）/ 容差值 location=0.01 rotation=0.01 scale=0.001
+- Docs/bridge_implementation_plan.md（§4 BridgeTypes 映射——FBridgeTransform 的 NearlyEquals 容差）
+  读完应掌握：C++ 侧 TestNearlyEqual 的参数含义
 
-a) SpawnReadbackLoop（5 个 It）
-   BeforeEach→SpawnActor / It→验证 location/rotation/scale 容差 + bounds + dirty
-   AfterEach→Undo
-b) TransformModifyLoop（3 个 It）
-   It→验证 old_transform / It→readback 新值 / It→Undo 后恢复原值
-c) ImportMetadataLoop（2 个 It）
-   It→GetAssetMetadata exists=true / It→GetDirtyAssets（无测试资源时 skip）
+涉及文件（1 个）：
 
-容差：location ≤ 0.01, rotation ≤ 0.01, scale ≤ 0.001
+═══════════════════════════════════════════════════════
+文件: Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L2_ClosedLoopSpecs.spec.cpp
+═══════════════════════════════════════════════════════
+
+使用 BEGIN_DEFINE_SPEC / END_DEFINE_SPEC 宏注册 3 个 Spec。
+Test Flag: EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
+（UE5.5 控制台稳定性：L2 Spec 使用 ProductFilter，并采用 L1→L2 两段式执行）
+
+获取 Subsystem 的方式（在 Spec 成员中缓存）：
+  UAgentBridgeSubsystem* Subsystem;  // 在 BeforeEach 中初始化
+  Subsystem = GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>();
+
+容差常量（文件顶部定义）：
+  const float LocationTolerance = 0.01f;   // cm
+  const float RotationTolerance = 0.01f;   // degrees
+  const float ScaleTolerance    = 0.001f;  // 倍率
+
+═══════════════════════════════════════════════════════
+Spec 1: Project.AgentBridge.L2.SpawnReadbackLoop（5 个 It）
+═══════════════════════════════════════════════════════
+
+验证闭环：SpawnActor → GetActorState 读回 → 逐字段容差比对
+
+BEGIN_DEFINE_SPEC(FBridgeL2_SpawnReadbackLoop,
+    "Project.AgentBridge.L2.SpawnReadbackLoop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+    UAgentBridgeSubsystem* Subsystem;
+    FString LevelPath;
+    FString SpawnedActorPath;
+    FBridgeTransform InputTransform;    // 输入值（用于比对）
+END_DEFINE_SPEC(...)
+
+Describe("spawn actor then readback via GetActorState"):
+
+  BeforeEach:
+    获取 Subsystem + LevelPath
+    设置 InputTransform：Location(1234, 5678, 90) / Rotation(0, 45, 0) / Scale(1.5, 1.5, 1.5)
+    调用 SpawnActor(LevelPath, StaticMeshActor, "L2_SpawnTest", InputTransform)
+    从返回值取 SpawnedActorPath
+    如果 Spawn 失败 → AddError + 后续 It 跳过
+
+  It("should return matching location on readback"):
+    调用 GetActorState(SpawnedActorPath)
+    从 data.transform.location 取 [X, Y, Z]
+    TestNearlyEqual("Location.X", X, 1234.0, 0.01)
+    TestNearlyEqual("Location.Y", Y, 5678.0, 0.01)
+    TestNearlyEqual("Location.Z", Z, 90.0, 0.01)
+
+  It("should return matching rotation on readback"):
+    从 data.transform.rotation 取 [Pitch, Yaw, Roll]
+    TestNearlyEqual("Rotation.Pitch", Pitch, 0.0, 0.01)
+    TestNearlyEqual("Rotation.Yaw", Yaw, 45.0, 0.01)
+    TestNearlyEqual("Rotation.Roll", Roll, 0.0, 0.01)
+
+  It("should return matching scale on readback"):
+    从 data.transform.relative_scale3d 取 [SX, SY, SZ]
+    TestNearlyEqual("Scale.X", SX, 1.5, 0.001)
+    TestNearlyEqual("Scale.Y", SY, 1.5, 0.001)
+    TestNearlyEqual("Scale.Z", SZ, 1.5, 0.001)
+
+  It("should be visible in GetActorBounds"):
+    调用 GetActorBounds(SpawnedActorPath)
+    断言：data 含 world_bounds_origin[3] + world_bounds_extent[3]
+    断言：extent 非零（Actor 有物理尺寸）
+    验证目的：跨接口验证——SpawnActor 创建的 Actor 在另一个查询接口中也能找到
+
+  It("should mark level as dirty"):
+    调用 GetDirtyAssets()
+    断言：dirty_assets 列表非空
+    验证目的：副作用检查——Spawn 操作应该标记关卡为脏
+
+  AfterEach:
+    GEditor->UndoTransaction()  // 撤销 Spawn，恢复关卡干净状态
+
+═══════════════════════════════════════════════════════
+Spec 2: Project.AgentBridge.L2.TransformModifyLoop（3 个 It）
+═══════════════════════════════════════════════════════
+
+验证闭环：SpawnActor → SetActorTransform → GetActorState 验证新值 → Undo → GetActorState 验证恢复
+
+BEGIN_DEFINE_SPEC(FBridgeL2_TransformModifyLoop,
+    "Project.AgentBridge.L2.TransformModifyLoop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+    UAgentBridgeSubsystem* Subsystem;
+    FString ActorPath;
+    FBridgeTransform OriginalTransform;   // Spawn 时的初始值
+    FBridgeTransform NewTransform;        // 要修改成的新值
+END_DEFINE_SPEC(...)
+
+Describe("modify transform then verify readback"):
+
+  BeforeEach:
+    SpawnActor → 记录 ActorPath
+    OriginalTransform: Location(200, 300, 0) / Rotation(0, 0, 0) / Scale(1, 1, 1)
+    NewTransform: Location(800, 900, 50) / Rotation(0, 90, 0) / Scale(2, 2, 2)
+
+  It("should return old_transform matching original"):
+    调用 SetActorTransform(ActorPath, NewTransform)
+    从返回值取 data.old_transform
+    TestNearlyEqual("Old Location.X", old.X, 200.0, 0.01)
+    TestNearlyEqual("Old Location.Y", old.Y, 300.0, 0.01)
+    验证目的：确认 old_transform 是修改前的快照，不是修改后的值
+
+  It("should readback modified values via GetActorState"):
+    调用 GetActorState(ActorPath)
+    从 data.transform.location 取修改后的值
+    TestNearlyEqual("Modified X", X, 800.0, 0.01)
+    TestNearlyEqual("Modified Y", Y, 900.0, 0.01)
+    TestNearlyEqual("Modified Z", Z, 50.0, 0.01)
+    验证目的：独立接口二次确认——SetActorTransform 返回的 actual 与 GetActorState 读回一致
+
+  It("should be undoable via Transaction"):
+    GEditor->UndoTransaction()  // 撤销 SetActorTransform
+    调用 GetActorState(ActorPath)
+    TestNearlyEqual("Undone X", X, 200.0, 0.01)  // 应恢复为 OriginalTransform
+    TestNearlyEqual("Undone Y", Y, 300.0, 0.01)
+    验证目的：FScopedTransaction 的 Undo 确实生效——最关键的回滚验证
+
+  AfterEach:
+    GEditor->UndoTransaction()  // 撤销 SetActorTransform（如果 It 中未撤销）
+    GEditor->UndoTransaction()  // 撤销 SpawnActor
+
+═══════════════════════════════════════════════════════
+Spec 3: Project.AgentBridge.L2.ImportMetadataLoop（2 个 It）
+═══════════════════════════════════════════════════════
+
+验证闭环：ImportAssets → GetAssetMetadata 验证存在 → GetDirtyAssets 验证副作用
+
+BEGIN_DEFINE_SPEC(FBridgeL2_ImportMetadataLoop,
+    "Project.AgentBridge.L2.ImportMetadataLoop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+    UAgentBridgeSubsystem* Subsystem;
+    FString TestSourceDir;     // 测试资源目录
+    FString TestDestPath;      // 导入目标路径
+    bool bHasTestAssets;       // 是否有测试资源可用
+END_DEFINE_SPEC(...)
+
+Describe("import assets then verify via GetAssetMetadata"):
+
+  BeforeEach:
+    检查测试资源目录是否存在（CI 环境可能没有）
+    bHasTestAssets = FPaths::DirectoryExists(TestSourceDir)
+    如果存在 → ImportAssets(TestSourceDir, TestDestPath)
+    如果不存在 → bHasTestAssets = false
+
+  It("should find imported asset via GetAssetMetadata"):
+    if (!bHasTestAssets) → AddWarning("No test assets") + 跳过（不是 FAIL）
+    调用 GetAssetMetadata(导入后的资产路径)
+    断言：exists == true + class 非空
+
+  It("should list imported assets as dirty"):
+    if (!bHasTestAssets) → AddWarning + 跳过
+    调用 GetDirtyAssets()
+    断言：dirty_assets 列表中包含导入的资产路径
+
+  AfterEach:
+    if (bHasTestAssets) → GEditor->UndoTransaction()
+
+═══════════════════════════════════════════════════════
+L2 与 L1 的关键区别（给 Agent 的理解参考）
+═══════════════════════════════════════════════════════
+
+| 维度 | L1（TASK 07） | L2（本 TASK） |
+|---|---|---|
+| 粒度 | 单接口 | 多接口协作闭环 |
+| 注册方式 | IMPLEMENT_SIMPLE_AUTOMATION_TEST | BEGIN_DEFINE_SPEC（BDD 语法） |
+| Test Flag | ProductFilter | ProductFilter（UE5.5 控制台稳定路径） |
+| 核心验证 | "返回值结构正确" | "写后读回一致 + Undo 回滚有效" |
+| 生命周期 | RunTest 一次性执行 | BeforeEach 准备 / It 独立断言 / AfterEach 清理 |
+| 依赖 | 仅依赖 Subsystem | 依赖多个 Subsystem 接口的协作 |
+| 容差验证 | 无（只检查字段存在） | TestNearlyEqual（0.01 / 0.01 / 0.001） |
+
+═══════════════════════════════════════════════════════
+验证步骤
+═══════════════════════════════════════════════════════
+
+Step 1: 编译通过
+
+Step 2: Session Frontend 确认 Spec 可见
+  Window → Developer Tools → Session Frontend → Automation
+  展开 Project → AgentBridge → L2
+  预期树结构：
+    Project.AgentBridge
+    └── L2
+        ├── SpawnReadbackLoop         (5 个 It)
+        ├── TransformModifyLoop       (3 个 It)
+        └── ImportMetadataLoop        (2 个 It)
+
+Step 3: Run All → 全部绿灯
+  选中 Project.AgentBridge.L2 → Run Selected
+  预期：10 个 It 全部 PASS（或 ImportMetadataLoop 的 2 个 It 为 WARNING/SKIP）
+
+Step 4: Console 两段式验证（标准流程）
+  Phase 1（先跑 L1）：
+    Automation RunTests Project.AgentBridge.L1
+  Phase 2（再跑 L2）：
+    Automation RunTests Project.AgentBridge.L2
+  预期：两段均通过，且日志中能看到对应分组被执行
+
+Step 4.1: UAT 无人值守替代（可选，UE5.5 标准）
+  RunUAT.bat BuildCookRun -project=MyProject.uproject -run -editortest -RunAutomationTest=Project.AgentBridge.L2 -unattended -nullrhi -NoP4
+  预期：找到并执行 Project.AgentBridge.L2 测试，ExitCode=0
+  注意：不使用 `RunUAT.bat RunAutomationTests -filter=Project.AgentBridge.L2`
+
+Step 5: 验证 Undo 回滚的关键断言
+  TransformModifyLoop 的第 3 个 It "should be undoable via Transaction" 是最关键的断言：
+  - Undo 后 GetActorState 读回的 location 必须恢复到 OriginalTransform（200, 300, 0）
+  - 如果这个 It FAIL，说明 FScopedTransaction 或 Actor->Modify() 有问题
+
+Step 6: 验证跨接口一致性
+  SpawnReadbackLoop 的 5 个 It 涉及 3 个不同的查询接口（GetActorState / GetActorBounds / GetDirtyAssets）
+  全部 PASS = SpawnActor 创建的 Actor 在多个独立接口中都能看到且数据一致
+
+Step 7: 确认 L1+L2 顺序执行不冲突（替代聚合命令）
+  使用两段式顺序执行（先 L1 后 L2）作为最终验收口径
+  预期：L1（11 个）+ L2（10 个 It）全部通过，互不干扰
 
 【验收标准】
-- Session Frontend 可见 3 个 L2 Spec
-- "Automation RunTests Project.AgentBridge.L2" 全部通过
+- 编译零 error
+- Session Frontend 可见 3 个 L2 Spec（SpawnReadbackLoop / TransformModifyLoop / ImportMetadataLoop）
+- Console 两段式（L1→L2）全部通过
+- SpawnReadbackLoop 的 location/rotation/scale 容差断言全部 PASS（≤0.01 / ≤0.01 / ≤0.001）
+- TransformModifyLoop 的 Undo It 验证 old 值恢复正确（这是回滚能力的核心验证）
+- TransformModifyLoop 的 old_transform 确实是修改前值（不等于 actual_transform）
+- ImportMetadataLoop 无测试资源时 SKIP 而非 FAIL（graceful degradation）
+- SpawnReadbackLoop 的 AfterEach 成功 Undo（Run All 后关卡无残留 Actor）
+- L1 + L2 合计运行不冲突
 ```
 ---
 ---

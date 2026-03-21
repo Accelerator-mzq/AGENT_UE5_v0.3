@@ -169,14 +169,24 @@ FUATRunResult FUATRunner::RunAutomationTests(
 	const bool bSync)
 {
 	const FString ProjectPath = FPaths::GetProjectFilePath();
+	// UE5.5 不存在独立的 RunAutomationTests 子命令，需通过 BuildCookRun 的 editortest 路径触发。
 	FString Args = FString::Printf(
-		TEXT("RunAutomationTests -project=\"%s\" -filter=\"%s\""),
-		*ProjectPath,
-		*Filter);
+		TEXT("BuildCookRun -project=\"%s\" -run -editortest -unattended -nullrhi -NoP4"),
+		*ProjectPath);
 
+	if (!Filter.IsEmpty())
+	{
+		Args += FString::Printf(TEXT(" -RunAutomationTest=%s"), *Filter);
+	}
+	else
+	{
+		Args += TEXT(" -RunAutomationTests");
+	}
+
+	// BuildCookRun 没有稳定的 -ReportOutputPath 参数入口，暂保留字段用于上层记录。
 	if (!ReportPath.IsEmpty())
 	{
-		Args += FString::Printf(TEXT(" -ReportOutputPath=\"%s\""), *ReportPath);
+		Args += FString::Printf(TEXT(" -addcmdline=\"-ReportExportPath=\\\"%s\\\"\""), *ReportPath);
 	}
 
 	return ExecuteUAT(Args, bSync);

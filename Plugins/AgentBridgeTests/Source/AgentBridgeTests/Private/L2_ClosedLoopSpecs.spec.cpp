@@ -1,36 +1,197 @@
 ﻿// L2_ClosedLoopSpecs.spec.cpp
-// AGENT + UE5 鍙搷浣滃堡 鈥?L2 闂幆椹楄瓑
-//
-// UE5 瀹樻柟妯＄祫锛欰utomation Spec锛圔DD 璇硶锛?// 瑷诲唺鏂瑰紡锛欱EGIN_DEFINE_SPEC / DEFINE_SPEC 瀹?// Test Flag锛欵ditorContext + SmokeFilter
-// Session Frontend 璺緞锛歅roject.AgentBridge.L2.*
-//
-// L2 闂幆楠岃瘉鐨勬牳蹇冩ā寮忥細
-//   鍐欐搷浣?鈫?璇诲洖 鈫?楠岃瘉锛堝啓鍚庤鍥炰竴鑷存€?+ 鍓綔鐢ㄦ鏌ワ級
-//
-// 涓?L1 鐨勫尯鍒細
-//   L1 = 鍗曟帴鍙ｆ纭€э紙璋冧竴娆★紝鐪嬭繑鍥炲€煎涓嶅锛?//   L2 = 澶氭帴鍙ｅ崗浣滄纭€э紙鍐欌啋璇烩啋楠?鐨勯摼璺槸鍚﹂棴鐜級
+// 目标：实现 3 个 L2 BDD 闭环验证（写 -> 读回 -> 容差比对 -> Undo -> 再读回）。
 
 #include "Misc/AutomationTest.h"
 #include "AgentBridgeSubsystem.h"
 #include "BridgeTypes.h"
 #include "Editor.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Math/UnrealMathUtility.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
-// ============================================================
-// L2-01: Spawn 鈫?Readback 鈫?Verify
-// 楠岃瘉锛歋pawnActor 鍚?GetActorState 璇诲洖鐨?Transform 涓庨鏈熶竴鑷?// ============================================================
+namespace
+{
+// L2 统一容差标准（与文档保持一致）。
+const float LocationTolerance = 0.01f;   // cm
+const float RotationTolerance = 0.01f;   // degrees
+const float ScaleTolerance = 0.001f;     // scale
+
+const TCHAR* StaticMeshActorClass = TEXT("/Script/Engine.StaticMeshActor");
+const TCHAR* BoundsTestActorClass = TEXT("/Script/Engine.TriggerBox");
+
+static UAgentBridgeSubsystem* GetSubsystem(FAutomationTestBase& Test)
+{
+	UAgentBridgeSubsystem* Subsystem = GEditor ? GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>() : nullptr;
+	if (!Subsystem)
+	{
+		Test.AddError(TEXT("AgentBridgeSubsystem 不可用，请确认 AgentBridge 插件已启用且 Editor 已就绪。"));
+	}
+	return Subsystem;
+}
+
+static FString GetCurrentLevelPath()
+{
+	if (GEditor)
+	{
+		if (UWorld* World = GEditor->GetEditorWorldContext().World())
+		{
+			return World->GetPathName();
+		}
+	}
+	return TEXT("/Game/Maps/TestMap");
+}
+
+static bool TryReadArray3(
+	FAutomationTestBase& Test,
+	const TSharedPtr<FJsonObject>& JsonObject,
+	const TCHAR* FieldName,
+	double& OutA,
+	double& OutB,
+	double& OutC)
+{
+	const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+	if (!JsonObject.IsValid() || !JsonObject->TryGetArrayField(FieldName, Values) || !Values || Values->Num() != 3)
+	{
+		Test.AddError(FString::Printf(TEXT("字段 %s 缺失或格式错误（应为 3 元数组）。"), FieldName));
+		return false;
+	}
+
+	OutA = (*Values)[0].IsValid() ? (*Values)[0]->AsNumber() : 0.0;
+	OutB = (*Values)[1].IsValid() ? (*Values)[1]->AsNumber() : 0.0;
+	OutC = (*Values)[2].IsValid() ? (*Values)[2]->AsNumber() : 0.0;
+	return true;
+}
+
+static bool TryGetObjectField(
+	FAutomationTestBase& Test,
+	const TSharedPtr<FJsonObject>& Parent,
+	const TCHAR* FieldName,
+	TSharedPtr<FJsonObject>& OutObject)
+{
+	const TSharedPtr<FJsonObject>* Child = nullptr;
+	if (!Parent.IsValid() || !Parent->TryGetObjectField(FieldName, Child) || !Child || !(*Child).IsValid())
+	{
+		Test.AddError(FString::Printf(TEXT("字段 %s 缺失或不是对象。"), FieldName));
+		return false;
+	}
+
+	OutObject = *Child;
+	return true;
+}
+
+static FString ExtractCreatedActorPath(const FBridgeResponse& Response)
+{
+	if (!Response.Data.IsValid())
+	{
+		return FString();
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* CreatedObjects = nullptr;
+	if (!Response.Data->TryGetArrayField(TEXT("created_objects"), CreatedObjects) || !CreatedObjects || CreatedObjects->Num() == 0)
+	{
+		return FString();
+	}
+
+	const TSharedPtr<FJsonObject> FirstObj = (*CreatedObjects)[0].IsValid() ? (*CreatedObjects)[0]->AsObject() : nullptr;
+	if (!FirstObj.IsValid() || !FirstObj->HasTypedField<EJson::String>(TEXT("actor_path")))
+	{
+		return FString();
+	}
+
+	return FirstObj->GetStringField(TEXT("actor_path"));
+}
+
+static TArray<FString> ExtractCreatedAssetPaths(const FBridgeResponse& Response)
+{
+	TArray<FString> AssetPaths;
+
+	if (!Response.Data.IsValid())
+	{
+		return AssetPaths;
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* CreatedObjects = nullptr;
+	if (!Response.Data->TryGetArrayField(TEXT("created_objects"), CreatedObjects) || !CreatedObjects)
+	{
+		return AssetPaths;
+	}
+
+	for (const TSharedPtr<FJsonValue>& Item : *CreatedObjects)
+	{
+		const TSharedPtr<FJsonObject> Obj = Item.IsValid() ? Item->AsObject() : nullptr;
+		if (Obj.IsValid() && Obj->HasTypedField<EJson::String>(TEXT("asset_path")))
+		{
+			AssetPaths.Add(Obj->GetStringField(TEXT("asset_path")));
+		}
+	}
+
+	return AssetPaths;
+}
+
+static FString JsonObjectToString(const TSharedPtr<FJsonObject>& JsonObject)
+{
+	if (!JsonObject.IsValid())
+	{
+		return TEXT("{}");
+	}
+
+	FString Json;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+	FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+	return Json;
+}
+
+static FString ToPackagePath(const FString& AssetPath)
+{
+	FString PackagePath;
+	FString ObjectName;
+	if (AssetPath.Split(TEXT("."), &PackagePath, &ObjectName, ESearchCase::CaseSensitive, ESearchDir::FromStart))
+	{
+		return PackagePath;
+	}
+	return AssetPath;
+}
+
+static bool DirtyListContainsImportedAsset(
+	const TArray<TSharedPtr<FJsonValue>>& DirtyAssets,
+	const TArray<FString>& ImportedAssetPaths)
+{
+	for (const TSharedPtr<FJsonValue>& DirtyItem : DirtyAssets)
+	{
+		if (!DirtyItem.IsValid())
+		{
+			continue;
+		}
+
+		const FString DirtyPath = DirtyItem->AsString();
+		for (const FString& ImportedPath : ImportedAssetPaths)
+		{
+			const FString ImportedPackagePath = ToPackagePath(ImportedPath);
+			if (DirtyPath.Equals(ImportedPath, ESearchCase::IgnoreCase)
+				|| DirtyPath.Equals(ImportedPackagePath, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+}
 
 BEGIN_DEFINE_SPEC(
 	FBridgeL2_SpawnReadbackLoop,
 	"Project.AgentBridge.L2.SpawnReadbackLoop",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
-)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 	UAgentBridgeSubsystem* Subsystem;
 	FString LevelPath;
 	FString SpawnedActorPath;
 	FBridgeTransform InputTransform;
-	static constexpr float LocationTolerance = 0.01f;
-	static constexpr float RotationTolerance = 0.01f;
-	static constexpr float ScaleTolerance = 0.001f;
+	bool bSpawnSucceeded;
 END_DEFINE_SPEC(FBridgeL2_SpawnReadbackLoop)
 
 void FBridgeL2_SpawnReadbackLoop::Define()
@@ -39,156 +200,226 @@ void FBridgeL2_SpawnReadbackLoop::Define()
 	{
 		BeforeEach([this]()
 		{
-			Subsystem = GEditor ? GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>() : nullptr;
+			Subsystem = GetSubsystem(*this);
+			LevelPath = GetCurrentLevelPath();
+			SpawnedActorPath.Empty();
+			bSpawnSucceeded = false;
+
 			if (!Subsystem)
 			{
-				AddError(TEXT("AgentBridgeSubsystem not available"));
 				return;
 			}
 
-			UWorld* World = GEditor->GetEditorWorldContext().World();
-			LevelPath = World ? World->GetPathName() : TEXT("/Temp/TestMap");
-
-			// 璁剧疆杈撳叆 Transform
+			// 固定输入值，后续所有 It 都以它作为容差比对基准。
 			InputTransform.Location = FVector(1234.0f, 5678.0f, 90.0f);
-			InputTransform.Rotation = FRotator(0.0f, 135.0f, 0.0f);
+			InputTransform.Rotation = FRotator(0.0f, 45.0f, 0.0f);
 			InputTransform.RelativeScale3D = FVector(1.5f, 1.5f, 1.5f);
 
-			// 鎵ц Spawn
-			FBridgeResponse SpawnResp = Subsystem->SpawnActor(
+			const FBridgeResponse SpawnResp = Subsystem->SpawnActor(
 				LevelPath,
-				TEXT("/Script/Engine.StaticMeshActor"),
-				TEXT("L2_SpawnReadback_TestActor"),
-				InputTransform
-			);
+				BoundsTestActorClass,
+				TEXT("L2_SpawnTest"),
+				InputTransform);
 
 			if (!SpawnResp.IsSuccess())
 			{
-				AddError(FString::Printf(TEXT("Spawn failed: %s"), *SpawnResp.Summary));
+				AddError(FString::Printf(TEXT("SpawnActor 失败：%s"), *SpawnResp.Summary));
 				return;
 			}
 
-			// 鎻愬彇 actor_path
-			const TArray<TSharedPtr<FJsonValue>>* CreatedArr;
-			if (SpawnResp.Data->TryGetArrayField(TEXT("created_objects"), CreatedArr) && CreatedArr->Num() > 0)
+			SpawnedActorPath = ExtractCreatedActorPath(SpawnResp);
+			if (SpawnedActorPath.IsEmpty())
 			{
-				SpawnedActorPath = (*CreatedArr)[0]->AsObject()->GetStringField(TEXT("actor_path"));
+				AddError(TEXT("SpawnActor 成功但未返回 created_objects[0].actor_path。"));
+				return;
 			}
+
+			bSpawnSucceeded = true;
 		});
 
 		It("should return matching location on readback", [this]()
 		{
-			if (SpawnedActorPath.IsEmpty()) { AddError(TEXT("No spawned actor path")); return; }
-
-			FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
-			TestTrue(TEXT("GetActorState should succeed"), StateResp.IsSuccess());
-
-			const TSharedPtr<FJsonObject>* TransformObj;
-			if (!StateResp.Data->TryGetObjectField(TEXT("transform"), TransformObj))
+			if (!bSpawnSucceeded)
 			{
-				AddError(TEXT("No transform in response")); return;
+				AddWarning(TEXT("前置 Spawn 失败，跳过 location 读回验证。"));
+				return;
 			}
 
-			const TArray<TSharedPtr<FJsonValue>>* LocArr;
-			if ((*TransformObj)->TryGetArrayField(TEXT("location"), LocArr) && LocArr->Num() == 3)
+			const FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
+			TestTrue(TEXT("GetActorState 应成功"), StateResp.IsSuccess());
+			if (!StateResp.IsSuccess() || !StateResp.Data.IsValid())
 			{
-				float X = static_cast<float>((*LocArr)[0]->AsNumber());
-				float Y = static_cast<float>((*LocArr)[1]->AsNumber());
-				float Z = static_cast<float>((*LocArr)[2]->AsNumber());
-				TestNearlyEqual(TEXT("Location.X"), X, static_cast<float>(InputTransform.Location.X), LocationTolerance);
-				TestNearlyEqual(TEXT("Location.Y"), Y, static_cast<float>(InputTransform.Location.Y), LocationTolerance);
-				TestNearlyEqual(TEXT("Location.Z"), Z, static_cast<float>(InputTransform.Location.Z), LocationTolerance);
+				return;
 			}
-			else
+
+			TSharedPtr<FJsonObject> TransformObj;
+			if (!TryGetObjectField(*this, StateResp.Data, TEXT("transform"), TransformObj))
 			{
-				AddError(TEXT("location array invalid"));
+				return;
 			}
+
+			double X = 0.0;
+			double Y = 0.0;
+			double Z = 0.0;
+			if (!TryReadArray3(*this, TransformObj, TEXT("location"), X, Y, Z))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Location.X"), static_cast<float>(X), 1234.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Location.Y"), static_cast<float>(Y), 5678.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Location.Z"), static_cast<float>(Z), 90.0f, LocationTolerance);
 		});
 
 		It("should return matching rotation on readback", [this]()
 		{
-			if (SpawnedActorPath.IsEmpty()) { AddError(TEXT("No spawned actor path")); return; }
-
-			FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
-			const TSharedPtr<FJsonObject>* TransformObj;
-			if (!StateResp.Data->TryGetObjectField(TEXT("transform"), TransformObj)) { AddError(TEXT("No transform")); return; }
-
-			const TArray<TSharedPtr<FJsonValue>>* RotArr;
-			if ((*TransformObj)->TryGetArrayField(TEXT("rotation"), RotArr) && RotArr->Num() == 3)
+			if (!bSpawnSucceeded)
 			{
-				float Pitch = static_cast<float>((*RotArr)[0]->AsNumber());
-				float Yaw = static_cast<float>((*RotArr)[1]->AsNumber());
-				float Roll = static_cast<float>((*RotArr)[2]->AsNumber());
-				TestNearlyEqual(TEXT("Rotation.Pitch"), Pitch, static_cast<float>(InputTransform.Rotation.Pitch), RotationTolerance);
-				TestNearlyEqual(TEXT("Rotation.Yaw"), Yaw, static_cast<float>(InputTransform.Rotation.Yaw), RotationTolerance);
-				TestNearlyEqual(TEXT("Rotation.Roll"), Roll, static_cast<float>(InputTransform.Rotation.Roll), RotationTolerance);
+				AddWarning(TEXT("前置 Spawn 失败，跳过 rotation 读回验证。"));
+				return;
 			}
+
+			const FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
+			TestTrue(TEXT("GetActorState 应成功"), StateResp.IsSuccess());
+			if (!StateResp.IsSuccess() || !StateResp.Data.IsValid())
+			{
+				return;
+			}
+
+			TSharedPtr<FJsonObject> TransformObj;
+			if (!TryGetObjectField(*this, StateResp.Data, TEXT("transform"), TransformObj))
+			{
+				return;
+			}
+
+			double Pitch = 0.0;
+			double Yaw = 0.0;
+			double Roll = 0.0;
+			if (!TryReadArray3(*this, TransformObj, TEXT("rotation"), Pitch, Yaw, Roll))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Rotation.Pitch"), static_cast<float>(Pitch), 0.0f, RotationTolerance);
+			TestNearlyEqual(TEXT("Rotation.Yaw"), static_cast<float>(Yaw), 45.0f, RotationTolerance);
+			TestNearlyEqual(TEXT("Rotation.Roll"), static_cast<float>(Roll), 0.0f, RotationTolerance);
 		});
 
 		It("should return matching scale on readback", [this]()
 		{
-			if (SpawnedActorPath.IsEmpty()) { AddError(TEXT("No spawned actor path")); return; }
-
-			FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
-			const TSharedPtr<FJsonObject>* TransformObj;
-			if (!StateResp.Data->TryGetObjectField(TEXT("transform"), TransformObj)) { AddError(TEXT("No transform")); return; }
-
-			const TArray<TSharedPtr<FJsonValue>>* ScaleArr;
-			if ((*TransformObj)->TryGetArrayField(TEXT("relative_scale3d"), ScaleArr) && ScaleArr->Num() == 3)
+			if (!bSpawnSucceeded)
 			{
-				float SX = static_cast<float>((*ScaleArr)[0]->AsNumber());
-				float SY = static_cast<float>((*ScaleArr)[1]->AsNumber());
-				float SZ = static_cast<float>((*ScaleArr)[2]->AsNumber());
-				TestNearlyEqual(TEXT("Scale.X"), SX, static_cast<float>(InputTransform.RelativeScale3D.X), ScaleTolerance);
-				TestNearlyEqual(TEXT("Scale.Y"), SY, static_cast<float>(InputTransform.RelativeScale3D.Y), ScaleTolerance);
-				TestNearlyEqual(TEXT("Scale.Z"), SZ, static_cast<float>(InputTransform.RelativeScale3D.Z), ScaleTolerance);
+				AddWarning(TEXT("前置 Spawn 失败，跳过 scale 读回验证。"));
+				return;
 			}
+
+			const FBridgeResponse StateResp = Subsystem->GetActorState(SpawnedActorPath);
+			TestTrue(TEXT("GetActorState 应成功"), StateResp.IsSuccess());
+			if (!StateResp.IsSuccess() || !StateResp.Data.IsValid())
+			{
+				return;
+			}
+
+			TSharedPtr<FJsonObject> TransformObj;
+			if (!TryGetObjectField(*this, StateResp.Data, TEXT("transform"), TransformObj))
+			{
+				return;
+			}
+
+			double SX = 0.0;
+			double SY = 0.0;
+			double SZ = 0.0;
+			if (!TryReadArray3(*this, TransformObj, TEXT("relative_scale3d"), SX, SY, SZ))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Scale.X"), static_cast<float>(SX), 1.5f, ScaleTolerance);
+			TestNearlyEqual(TEXT("Scale.Y"), static_cast<float>(SY), 1.5f, ScaleTolerance);
+			TestNearlyEqual(TEXT("Scale.Z"), static_cast<float>(SZ), 1.5f, ScaleTolerance);
 		});
 
 		It("should be visible in GetActorBounds", [this]()
 		{
-			if (SpawnedActorPath.IsEmpty()) { AddError(TEXT("No spawned actor path")); return; }
+			if (!bSpawnSucceeded)
+			{
+				AddWarning(TEXT("前置 Spawn 失败，跳过 bounds 验证。"));
+				return;
+			}
 
-			FBridgeResponse BoundsResp = Subsystem->GetActorBounds(SpawnedActorPath);
-			TestTrue(TEXT("GetActorBounds should succeed"), BoundsResp.IsSuccess());
-			TestTrue(TEXT("Should have world_bounds_origin"),
-				BoundsResp.Data.IsValid() && BoundsResp.Data->HasField(TEXT("world_bounds_origin")));
+			const FBridgeResponse BoundsResp = Subsystem->GetActorBounds(SpawnedActorPath);
+			TestTrue(TEXT("GetActorBounds 应成功"), BoundsResp.IsSuccess());
+			if (!BoundsResp.IsSuccess() || !BoundsResp.Data.IsValid())
+			{
+				return;
+			}
+
+			double OriginX = 0.0;
+			double OriginY = 0.0;
+			double OriginZ = 0.0;
+			double ExtentX = 0.0;
+			double ExtentY = 0.0;
+			double ExtentZ = 0.0;
+
+			TestTrue(TEXT("应包含 world_bounds_origin[3]"),
+				TryReadArray3(*this, BoundsResp.Data, TEXT("world_bounds_origin"), OriginX, OriginY, OriginZ));
+			TestTrue(TEXT("应包含 world_bounds_extent[3]"),
+				TryReadArray3(*this, BoundsResp.Data, TEXT("world_bounds_extent"), ExtentX, ExtentY, ExtentZ));
+
+			const bool bExtentNonZero =
+				!FMath::IsNearlyZero(static_cast<float>(ExtentX))
+				|| !FMath::IsNearlyZero(static_cast<float>(ExtentY))
+				|| !FMath::IsNearlyZero(static_cast<float>(ExtentZ));
+			TestTrue(TEXT("world_bounds_extent 应非零（Actor 应有物理尺寸）"), bExtentNonZero);
 		});
 
 		It("should mark level as dirty", [this]()
 		{
-			FBridgeResponse DirtyResp = Subsystem->GetDirtyAssets();
-			TestTrue(TEXT("GetDirtyAssets should succeed"), DirtyResp.IsSuccess());
-			// Spawn 鍚庡叧鍗″簲涓鸿剰
-			// 娉ㄦ剰锛氫笉鍋氫弗鏍兼柇瑷€锛堝叾浠栨搷浣滀篃鍙兘浜х敓鑴忚祫浜э級锛屼粎楠岃瘉鎺ュ彛鍙敤
+			if (!bSpawnSucceeded)
+			{
+				AddWarning(TEXT("前置 Spawn 失败，跳过 dirty_assets 验证。"));
+				return;
+			}
+
+			const FBridgeResponse DirtyResp = Subsystem->GetDirtyAssets();
+			TestTrue(TEXT("GetDirtyAssets 应成功"), DirtyResp.IsSuccess());
+			if (!DirtyResp.IsSuccess() || !DirtyResp.Data.IsValid())
+			{
+				return;
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* DirtyAssets = nullptr;
+			TestTrue(TEXT("dirty_assets 应为数组"), DirtyResp.Data->TryGetArrayField(TEXT("dirty_assets"), DirtyAssets) && DirtyAssets != nullptr);
+			if (DirtyAssets)
+			{
+				TestTrue(TEXT("dirty_assets 应非空"), DirtyAssets->Num() > 0);
+			}
 		});
 
 		AfterEach([this]()
 		{
-			// Undo 娓呯悊
-			if (GEditor)
+			// 每个 It 结束后回滚 Spawn，确保关卡无残留。
+			if (bSpawnSucceeded && GEditor)
 			{
 				GEditor->UndoTransaction();
 			}
+			bSpawnSucceeded = false;
 			SpawnedActorPath.Empty();
 		});
 	});
 }
 
-// ============================================================
-// L2-02: Transform Modify 鈫?Readback 鈫?Verify
-// 楠岃瘉锛歋etActorTransform 鍚庤鍥炵殑 Transform 涓庢柊鍊间竴鑷达紝鏃у€间笌棰勬湡涓€鑷?// ============================================================
-
 BEGIN_DEFINE_SPEC(
 	FBridgeL2_TransformModifyLoop,
 	"Project.AgentBridge.L2.TransformModifyLoop",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
-)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 	UAgentBridgeSubsystem* Subsystem;
 	FString LevelPath;
 	FString ActorPath;
 	FBridgeTransform OriginalTransform;
-	FBridgeTransform ModifiedTransform;
+	FBridgeTransform NewTransform;
+	bool bSpawnSucceeded;
+	bool bTransformApplied;
 END_DEFINE_SPEC(FBridgeL2_TransformModifyLoop)
 
 void FBridgeL2_TransformModifyLoop::Define()
@@ -197,142 +428,234 @@ void FBridgeL2_TransformModifyLoop::Define()
 	{
 		BeforeEach([this]()
 		{
-			Subsystem = GEditor ? GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>() : nullptr;
-			if (!Subsystem) { AddError(TEXT("Subsystem not available")); return; }
+			Subsystem = GetSubsystem(*this);
+			LevelPath = GetCurrentLevelPath();
+			ActorPath.Empty();
+			bSpawnSucceeded = false;
+			bTransformApplied = false;
 
-			UWorld* World = GEditor->GetEditorWorldContext().World();
-			LevelPath = World ? World->GetPathName() : TEXT("");
+			if (!Subsystem)
+			{
+				return;
+			}
 
-			// Spawn 鍒濆 Actor
 			OriginalTransform.Location = FVector(200.0f, 300.0f, 0.0f);
 			OriginalTransform.Rotation = FRotator(0.0f, 0.0f, 0.0f);
 			OriginalTransform.RelativeScale3D = FVector(1.0f, 1.0f, 1.0f);
 
-			FBridgeResponse SpawnResp = Subsystem->SpawnActor(
-				LevelPath, TEXT("/Script/Engine.StaticMeshActor"),
-				TEXT("L2_TransformModify_TestActor"), OriginalTransform);
+			NewTransform.Location = FVector(800.0f, 900.0f, 50.0f);
+			NewTransform.Rotation = FRotator(0.0f, 90.0f, 0.0f);
+			NewTransform.RelativeScale3D = FVector(2.0f, 2.0f, 2.0f);
 
-			if (!SpawnResp.IsSuccess()) { AddError(TEXT("Spawn failed")); return; }
+			const FBridgeResponse SpawnResp = Subsystem->SpawnActor(
+				LevelPath,
+				StaticMeshActorClass,
+				TEXT("L2_TransformTest"),
+				OriginalTransform);
 
-			const TArray<TSharedPtr<FJsonValue>>* CreatedArr;
-			if (SpawnResp.Data->TryGetArrayField(TEXT("created_objects"), CreatedArr) && CreatedArr->Num() > 0)
+			if (!SpawnResp.IsSuccess())
 			{
-				ActorPath = (*CreatedArr)[0]->AsObject()->GetStringField(TEXT("actor_path"));
+				AddError(FString::Printf(TEXT("TransformModifyLoop 前置 Spawn 失败：%s"), *SpawnResp.Summary));
+				return;
 			}
 
-			// 瀹氫箟鐩爣 Transform
-			ModifiedTransform.Location = FVector(800.0f, 900.0f, 50.0f);
-			ModifiedTransform.Rotation = FRotator(10.0f, 270.0f, 0.0f);
-			ModifiedTransform.RelativeScale3D = FVector(3.0f, 3.0f, 3.0f);
+			ActorPath = ExtractCreatedActorPath(SpawnResp);
+			if (ActorPath.IsEmpty())
+			{
+				AddError(TEXT("TransformModifyLoop 未获取到 actor_path。"));
+				return;
+			}
+
+			bSpawnSucceeded = true;
 		});
 
 		It("should return old_transform matching original", [this]()
 		{
-			if (ActorPath.IsEmpty()) { AddError(TEXT("No actor")); return; }
-
-			FBridgeResponse Resp = Subsystem->SetActorTransform(ActorPath, ModifiedTransform);
-			TestTrue(TEXT("SetActorTransform should succeed"), Resp.IsSuccess());
-
-			const TSharedPtr<FJsonObject>* OldObj;
-			if (Resp.Data->TryGetObjectField(TEXT("old_transform"), OldObj))
+			if (!bSpawnSucceeded)
 			{
-				const TArray<TSharedPtr<FJsonValue>>* LocArr;
-				if ((*OldObj)->TryGetArrayField(TEXT("location"), LocArr) && LocArr->Num() == 3)
-				{
-					TestNearlyEqual(TEXT("Old Location.X"), (float)(*LocArr)[0]->AsNumber(), 200.0f, 0.01f);
-					TestNearlyEqual(TEXT("Old Location.Y"), (float)(*LocArr)[1]->AsNumber(), 300.0f, 0.01f);
-				}
+				AddWarning(TEXT("前置 Spawn 失败，跳过 old_transform 验证。"));
+				return;
 			}
 
-			// Undo the SetTransform for next It block to have clean state
-			if (GEditor) GEditor->UndoTransaction();
+			const FBridgeResponse SetResp = Subsystem->SetActorTransform(ActorPath, NewTransform);
+			bTransformApplied = SetResp.IsSuccess();
+
+			TestTrue(TEXT("SetActorTransform 应成功"), SetResp.IsSuccess());
+			if (!SetResp.IsSuccess() || !SetResp.Data.IsValid())
+			{
+				return;
+			}
+
+			TSharedPtr<FJsonObject> OldTransformObj;
+			TSharedPtr<FJsonObject> ActualTransformObj;
+			if (!TryGetObjectField(*this, SetResp.Data, TEXT("old_transform"), OldTransformObj))
+			{
+				return;
+			}
+			if (!TryGetObjectField(*this, SetResp.Data, TEXT("actual_transform"), ActualTransformObj))
+			{
+				return;
+			}
+
+			double OldX = 0.0;
+			double OldY = 0.0;
+			double OldZ = 0.0;
+			if (!TryReadArray3(*this, OldTransformObj, TEXT("location"), OldX, OldY, OldZ))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Old Location.X"), static_cast<float>(OldX), 200.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Old Location.Y"), static_cast<float>(OldY), 300.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Old Location.Z"), static_cast<float>(OldZ), 0.0f, LocationTolerance);
+
+			// old_transform 必须是修改前快照，不应与 actual_transform 完全一致。
+			const FString OldJson = JsonObjectToString(OldTransformObj);
+			const FString ActualJson = JsonObjectToString(ActualTransformObj);
+			TestTrue(TEXT("old_transform 应与 actual_transform 不同"), OldJson != ActualJson);
 		});
 
 		It("should readback modified values via GetActorState", [this]()
 		{
-			if (ActorPath.IsEmpty()) { AddError(TEXT("No actor")); return; }
-
-			// Re-apply the modification
-			Subsystem->SetActorTransform(ActorPath, ModifiedTransform);
-
-			// Readback via separate query
-			FBridgeResponse StateResp = Subsystem->GetActorState(ActorPath);
-			TestTrue(TEXT("GetActorState should succeed"), StateResp.IsSuccess());
-
-			const TSharedPtr<FJsonObject>* TransformObj;
-			if (StateResp.Data->TryGetObjectField(TEXT("transform"), TransformObj))
+			if (!bSpawnSucceeded)
 			{
-				const TArray<TSharedPtr<FJsonValue>>* LocArr;
-				if ((*TransformObj)->TryGetArrayField(TEXT("location"), LocArr) && LocArr->Num() == 3)
-				{
-					TestNearlyEqual(TEXT("Modified Location.X"), (float)(*LocArr)[0]->AsNumber(), 800.0f, 0.01f);
-					TestNearlyEqual(TEXT("Modified Location.Y"), (float)(*LocArr)[1]->AsNumber(), 900.0f, 0.01f);
-					TestNearlyEqual(TEXT("Modified Location.Z"), (float)(*LocArr)[2]->AsNumber(), 50.0f, 0.01f);
-				}
-
-				const TArray<TSharedPtr<FJsonValue>>* ScaleArr;
-				if ((*TransformObj)->TryGetArrayField(TEXT("relative_scale3d"), ScaleArr) && ScaleArr->Num() == 3)
-				{
-					TestNearlyEqual(TEXT("Modified Scale.X"), (float)(*ScaleArr)[0]->AsNumber(), 3.0f, 0.001f);
-				}
+				AddWarning(TEXT("前置 Spawn 失败，跳过 modified readback 验证。"));
+				return;
 			}
 
-			// Undo
-			if (GEditor) GEditor->UndoTransaction();
+			const FBridgeResponse SetResp = Subsystem->SetActorTransform(ActorPath, NewTransform);
+			bTransformApplied = SetResp.IsSuccess();
+			TestTrue(TEXT("SetActorTransform 应成功"), SetResp.IsSuccess());
+			if (!SetResp.IsSuccess())
+			{
+				return;
+			}
+
+			const FBridgeResponse StateResp = Subsystem->GetActorState(ActorPath);
+			TestTrue(TEXT("GetActorState 应成功"), StateResp.IsSuccess());
+			if (!StateResp.IsSuccess() || !StateResp.Data.IsValid())
+			{
+				return;
+			}
+
+			TSharedPtr<FJsonObject> TransformObj;
+			if (!TryGetObjectField(*this, StateResp.Data, TEXT("transform"), TransformObj))
+			{
+				return;
+			}
+
+			double X = 0.0;
+			double Y = 0.0;
+			double Z = 0.0;
+			double Pitch = 0.0;
+			double Yaw = 0.0;
+			double Roll = 0.0;
+			double SX = 0.0;
+			double SY = 0.0;
+			double SZ = 0.0;
+
+			if (!TryReadArray3(*this, TransformObj, TEXT("location"), X, Y, Z))
+			{
+				return;
+			}
+			if (!TryReadArray3(*this, TransformObj, TEXT("rotation"), Pitch, Yaw, Roll))
+			{
+				return;
+			}
+			if (!TryReadArray3(*this, TransformObj, TEXT("relative_scale3d"), SX, SY, SZ))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Modified X"), static_cast<float>(X), 800.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Modified Y"), static_cast<float>(Y), 900.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Modified Z"), static_cast<float>(Z), 50.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Modified Yaw"), static_cast<float>(Yaw), 90.0f, RotationTolerance);
+			TestNearlyEqual(TEXT("Modified Scale.X"), static_cast<float>(SX), 2.0f, ScaleTolerance);
+			TestNearlyEqual(TEXT("Modified Scale.Y"), static_cast<float>(SY), 2.0f, ScaleTolerance);
+			TestNearlyEqual(TEXT("Modified Scale.Z"), static_cast<float>(SZ), 2.0f, ScaleTolerance);
 		});
 
 		It("should be undoable via Transaction", [this]()
 		{
-			if (ActorPath.IsEmpty()) { AddError(TEXT("No actor")); return; }
-
-			// Apply modification
-			Subsystem->SetActorTransform(ActorPath, ModifiedTransform);
-
-			// Undo
-			if (GEditor) GEditor->UndoTransaction();
-
-			// Readback should show original values
-			FBridgeResponse StateResp = Subsystem->GetActorState(ActorPath);
-			TestTrue(TEXT("GetActorState should succeed after undo"), StateResp.IsSuccess());
-
-			const TSharedPtr<FJsonObject>* TransformObj;
-			if (StateResp.Data->TryGetObjectField(TEXT("transform"), TransformObj))
+			if (!bSpawnSucceeded)
 			{
-				const TArray<TSharedPtr<FJsonValue>>* LocArr;
-				if ((*TransformObj)->TryGetArrayField(TEXT("location"), LocArr) && LocArr->Num() == 3)
-				{
-					TestNearlyEqual(TEXT("Undone Location.X should be original"),
-						(float)(*LocArr)[0]->AsNumber(), 200.0f, 0.01f);
-					TestNearlyEqual(TEXT("Undone Location.Y should be original"),
-						(float)(*LocArr)[1]->AsNumber(), 300.0f, 0.01f);
-				}
+				AddWarning(TEXT("前置 Spawn 失败，跳过 Undo 验证。"));
+				return;
 			}
+
+			const FBridgeResponse SetResp = Subsystem->SetActorTransform(ActorPath, NewTransform);
+			bTransformApplied = SetResp.IsSuccess();
+			TestTrue(TEXT("SetActorTransform 应成功"), SetResp.IsSuccess());
+			if (!SetResp.IsSuccess())
+			{
+				return;
+			}
+
+			if (!GEditor)
+			{
+				AddError(TEXT("GEditor 不可用，无法执行 Undo 回滚验证。"));
+				return;
+			}
+
+			// 回滚 SetActorTransform，并验证读回恢复到 OriginalTransform。
+			GEditor->UndoTransaction();
+			bTransformApplied = false;
+
+			const FBridgeResponse StateResp = Subsystem->GetActorState(ActorPath);
+			TestTrue(TEXT("Undo 后 GetActorState 应成功"), StateResp.IsSuccess());
+			if (!StateResp.IsSuccess() || !StateResp.Data.IsValid())
+			{
+				return;
+			}
+
+			TSharedPtr<FJsonObject> TransformObj;
+			if (!TryGetObjectField(*this, StateResp.Data, TEXT("transform"), TransformObj))
+			{
+				return;
+			}
+
+			double X = 0.0;
+			double Y = 0.0;
+			double Z = 0.0;
+			if (!TryReadArray3(*this, TransformObj, TEXT("location"), X, Y, Z))
+			{
+				return;
+			}
+
+			TestNearlyEqual(TEXT("Undone X"), static_cast<float>(X), 200.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Undone Y"), static_cast<float>(Y), 300.0f, LocationTolerance);
+			TestNearlyEqual(TEXT("Undone Z"), static_cast<float>(Z), 0.0f, LocationTolerance);
 		});
 
 		AfterEach([this]()
 		{
-			// Undo spawn
-			if (GEditor) GEditor->UndoTransaction();
+			// 若 It 中未回滚 Transform，则先回滚 Transform；再回滚 Spawn。
+			if (GEditor && bTransformApplied)
+			{
+				GEditor->UndoTransaction();
+				bTransformApplied = false;
+			}
+			if (GEditor && bSpawnSucceeded)
+			{
+				GEditor->UndoTransaction();
+				bSpawnSucceeded = false;
+			}
 			ActorPath.Empty();
 		});
 	});
 }
 
-// ============================================================
-// L2-03: Import 鈫?Metadata Check
-// 楠岃瘉锛欼mportAssets 鍚?GetAssetMetadata 鑳芥壘鍒板鍏ョ殑璧勪骇
-// 娉ㄦ剰锛氶渶瑕佹祴璇曡祫婧愭枃浠舵墠鑳借繍琛岋紝鍚﹀垯 skip
-// ============================================================
-
 BEGIN_DEFINE_SPEC(
 	FBridgeL2_ImportMetadataLoop,
 	"Project.AgentBridge.L2.ImportMetadataLoop",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
-)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 	UAgentBridgeSubsystem* Subsystem;
 	FString TestSourceDir;
 	FString TestDestPath;
-	bool bHasTestResources;
+	bool bHasTestAssets;
+	bool bImportApplied;
+	TArray<FString> ImportedAssetPaths;
 END_DEFINE_SPEC(FBridgeL2_ImportMetadataLoop)
 
 void FBridgeL2_ImportMetadataLoop::Define()
@@ -341,74 +664,99 @@ void FBridgeL2_ImportMetadataLoop::Define()
 	{
 		BeforeEach([this]()
 		{
-			Subsystem = GEditor ? GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>() : nullptr;
-			if (!Subsystem) { AddError(TEXT("Subsystem not available")); return; }
-
-			// 妫€鏌ユ槸鍚︽湁娴嬭瘯璧勬簮鐩綍
-			TestSourceDir = FPaths::ProjectDir() / TEXT("TestResources/ImportTest");
+			Subsystem = GetSubsystem(*this);
+			TestSourceDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("TestResources/ImportTest"));
 			TestDestPath = TEXT("/Game/Tests/L2_ImportTest");
-			bHasTestResources = FPaths::DirectoryExists(TestSourceDir);
+			bHasTestAssets = false;
+			bImportApplied = false;
+			ImportedAssetPaths.Reset();
+
+			if (!Subsystem)
+			{
+				return;
+			}
+
+			// CI 环境可能不提供测试资源目录：按 WARNING + 跳过处理。
+			if (!FPaths::DirectoryExists(TestSourceDir))
+			{
+				return;
+			}
+
+			const FBridgeResponse ImportResp = Subsystem->ImportAssets(TestSourceDir, TestDestPath, true);
+			if (!ImportResp.IsSuccess())
+			{
+				AddError(FString::Printf(TEXT("ImportAssets 失败：%s"), *ImportResp.Summary));
+				return;
+			}
+
+			bImportApplied = true;
+			ImportedAssetPaths = ExtractCreatedAssetPaths(ImportResp);
+
+			if (ImportedAssetPaths.Num() == 0)
+			{
+				AddWarning(FString::Printf(TEXT("目录 %s 存在，但没有可导入测试资源，后续 It 将跳过。"), *TestSourceDir));
+				return;
+			}
+
+			bHasTestAssets = true;
 		});
 
 		It("should find imported asset via GetAssetMetadata", [this]()
 		{
-			if (!bHasTestResources)
+			if (!bHasTestAssets)
 			{
-				AddWarning(FString::Printf(
-					TEXT("Test resources not found at %s 鈥?skipping import test. "
-						 "Create this directory with .fbx/.png files to enable."),
-					*TestSourceDir));
+				AddWarning(FString::Printf(TEXT("No test assets: %s"), *TestSourceDir));
 				return;
 			}
 
-			// 鎵ц瀵煎叆
-			FBridgeResponse ImportResp = Subsystem->ImportAssets(
-				TestSourceDir, TestDestPath, /*bReplaceExisting=*/true);
-
-			TestTrue(TEXT("Import should succeed"), ImportResp.IsSuccess());
-
-			// 妫€鏌?created_objects
-			const TArray<TSharedPtr<FJsonValue>>* CreatedArr;
-			if (!ImportResp.Data->TryGetArrayField(TEXT("created_objects"), CreatedArr) || CreatedArr->Num() == 0)
+			const FString& ImportedAssetPath = ImportedAssetPaths[0];
+			const FBridgeResponse MetaResp = Subsystem->GetAssetMetadata(ImportedAssetPath);
+			TestTrue(TEXT("GetAssetMetadata 应成功"), MetaResp.IsSuccess());
+			if (!MetaResp.IsSuccess() || !MetaResp.Data.IsValid())
 			{
-				AddWarning(TEXT("No assets imported 鈥?directory may be empty"));
 				return;
 			}
 
-			// 瀵圭涓€涓鍏ョ殑璧勪骇鎵ц GetAssetMetadata
-			FString ImportedPath = (*CreatedArr)[0]->AsObject()->GetStringField(TEXT("asset_path"));
-			FBridgeResponse MetaResp = Subsystem->GetAssetMetadata(ImportedPath);
-
-			TestTrue(TEXT("GetAssetMetadata should succeed"), MetaResp.IsSuccess());
-			if (MetaResp.Data.IsValid())
-			{
-				TestTrue(TEXT("Imported asset should exist"),
-					MetaResp.Data->GetBoolField(TEXT("exists")));
-			}
+			TestTrue(TEXT("exists 应为 true"), MetaResp.Data->HasField(TEXT("exists")) && MetaResp.Data->GetBoolField(TEXT("exists")));
+			TestTrue(TEXT("class 应非空"),
+				MetaResp.Data->HasField(TEXT("class")) && !MetaResp.Data->GetStringField(TEXT("class")).IsEmpty());
 		});
 
 		It("should list imported assets as dirty", [this]()
 		{
-			if (!bHasTestResources)
+			if (!bHasTestAssets)
 			{
-				AddWarning(TEXT("Skipping 鈥?no test resources"));
+				AddWarning(FString::Printf(TEXT("No test assets: %s"), *TestSourceDir));
 				return;
 			}
 
-			FBridgeResponse DirtyResp = Subsystem->GetDirtyAssets();
-			TestTrue(TEXT("GetDirtyAssets should succeed"), DirtyResp.IsSuccess());
-			// 瀵煎叆鍚庡簲鏈夎剰璧勪骇
+			const FBridgeResponse DirtyResp = Subsystem->GetDirtyAssets();
+			TestTrue(TEXT("GetDirtyAssets 应成功"), DirtyResp.IsSuccess());
+			if (!DirtyResp.IsSuccess() || !DirtyResp.Data.IsValid())
+			{
+				return;
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* DirtyAssets = nullptr;
+			TestTrue(TEXT("dirty_assets 应为数组"), DirtyResp.Data->TryGetArrayField(TEXT("dirty_assets"), DirtyAssets) && DirtyAssets != nullptr);
+			if (!DirtyAssets)
+			{
+				return;
+			}
+
+			const bool bContainsImported = DirtyListContainsImportedAsset(*DirtyAssets, ImportedAssetPaths);
+			TestTrue(TEXT("dirty_assets 应包含导入资源路径（对象路径或包路径）"), bContainsImported);
 		});
 
 		AfterEach([this]()
 		{
-			// Undo 瀵煎叆
-			if (GEditor && bHasTestResources)
+			if (bImportApplied && GEditor)
 			{
 				GEditor->UndoTransaction();
 			}
+			bImportApplied = false;
+			bHasTestAssets = false;
+			ImportedAssetPaths.Reset();
 		});
 	});
 }
-
-

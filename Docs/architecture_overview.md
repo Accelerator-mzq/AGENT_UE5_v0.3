@@ -288,7 +288,7 @@ C++ Plugin 是三个通道的共同底层——Python 和 RC API 也可以调用
 │   分组：ClosedLoop 3 个（语义工具闭环）+ UITool 2 个（L3→L1 交叉比对闭环）
 │   语法：Describe / BeforeEach / It / AfterEach（BDD 风格）
 │   逻辑：spawn → readback → verify 闭环 / L3 UI 操作 → L1 读回 → 交叉比对
-│   标签：EditorContext + SmokeFilter(ClosedLoop) / ProductFilter(UITool)
+│   标签：EditorContext + ProductFilter（UE5.5 控制台稳定路径）
 │   可见：Session Frontend UI → Project.AgentBridge.L2.*
 │
 └── L3: Functional Testing（完整 Demo）
@@ -346,9 +346,8 @@ UE5Editor-Cmd.exe MyGame.uproject \
 
 # 无头运行自动化测试
 UE5Editor-Cmd.exe MyGame.uproject \
-    -run=Automation \
+    -run=AgentBridge \
     -RunTests="Project.AgentBridge" \
-    -ReportOutputPath="Artifacts/test_report" \
     -Unattended -NoPause -NullRHI
 ```
 
@@ -361,11 +360,20 @@ RunUAT.bat BuildCookRun \
     -platform=Win64 -clientconfig=Development \
     -build -cook -stage -pak
 
-# 通过 UAT 运行自动化测试
-RunUAT.bat RunAutomationTests \
+# 通过 UAT 运行自动化测试（UE5.5 推荐）
+RunUAT.bat BuildCookRun \
     -project=MyGame.uproject \
-    -filter="Project.AgentBridge" \
-    -ReportOutputPath="Artifacts/test_report"
+    -run -editortest \
+    -RunAutomationTest=Project.AgentBridge.L2 \
+    -unattended -nullrhi -NoP4
+```
+
+### 7.4 旧入口命令护栏（CI）
+
+```bash
+# 返回 0：未发现旧入口命令
+# 返回 1：发现旧入口命令（阻断流水线）
+powershell -ExecutionPolicy Bypass -File Scripts/validation/validate_no_legacy_automation_entrypoints.ps1
 ```
 
 ---

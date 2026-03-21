@@ -15,7 +15,7 @@
 namespace
 {
 // 获取 Subsystem。
-static UAgentBridgeSubsystem* GetSubsystem(FAutomationTestBase& Test)
+static UAgentBridgeSubsystem* GetSubsystem_Write(FAutomationTestBase& Test)
 {
     UAgentBridgeSubsystem* Subsystem = GEditor ? GEditor->GetEditorSubsystem<UAgentBridgeSubsystem>() : nullptr;
     if (!Subsystem)
@@ -79,7 +79,7 @@ static FString GetCreatedActorPath(const FBridgeResponse& SpawnResp)
     return Obj.IsValid() && Obj->HasField(TEXT("actor_path")) ? Obj->GetStringField(TEXT("actor_path")) : FString();
 }
 
-static bool IsValidationInvalidArgs(const FBridgeResponse& Response)
+static bool IsValidationInvalidArgs_Write(const FBridgeResponse& Response)
 {
     return BridgeStatusToString(Response.Status) == TEXT("validation_error")
         && HasErrorCode(Response, TEXT("INVALID_ARGS"));
@@ -93,7 +93,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FBridgeL1_SpawnActor::RunTest(const FString& Parameters)
 {
-    UAgentBridgeSubsystem* Subsystem = GetSubsystem(*this);
+    UAgentBridgeSubsystem* Subsystem = GetSubsystem_Write(*this);
     if (!Subsystem) return false;
 
     UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
@@ -105,15 +105,15 @@ bool FBridgeL1_SpawnActor::RunTest(const FString& Parameters)
     // 1) 参数校验
     {
         const FBridgeResponse R1 = Subsystem->SpawnActor(TEXT(""), ActorClass, ActorName, Input);
-        TestTrue(TEXT("空 LevelPath -> validation_error"), IsValidationInvalidArgs(R1));
+        TestTrue(TEXT("空 LevelPath -> validation_error"), IsValidationInvalidArgs_Write(R1));
 
         const FBridgeResponse R2 = Subsystem->SpawnActor(LevelPath, TEXT(""), ActorName, Input);
-        TestTrue(TEXT("空 ActorClass -> validation_error"), IsValidationInvalidArgs(R2));
+        TestTrue(TEXT("空 ActorClass -> validation_error"), IsValidationInvalidArgs_Write(R2));
 
         FBridgeTransform ZeroScale = Input;
         ZeroScale.RelativeScale3D = FVector::ZeroVector;
         const FBridgeResponse R3 = Subsystem->SpawnActor(LevelPath, ActorClass, ActorName, ZeroScale);
-        TestTrue(TEXT("零缩放 -> validation_error"), IsValidationInvalidArgs(R3));
+        TestTrue(TEXT("零缩放 -> validation_error"), IsValidationInvalidArgs_Write(R3));
     }
 
     // 2) dry_run
@@ -165,13 +165,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FBridgeL1_SetActorTransform::RunTest(const FString& Parameters)
 {
-    UAgentBridgeSubsystem* Subsystem = GetSubsystem(*this);
+    UAgentBridgeSubsystem* Subsystem = GetSubsystem_Write(*this);
     if (!Subsystem) return false;
 
     // 1) 参数校验
     {
         const FBridgeResponse Empty = Subsystem->SetActorTransform(TEXT(""), MakeTransform(1, 2, 3));
-        TestTrue(TEXT("空 ActorPath -> validation_error"), IsValidationInvalidArgs(Empty));
+        TestTrue(TEXT("空 ActorPath -> validation_error"), IsValidationInvalidArgs_Write(Empty));
     }
 
     // 2) Actor 不存在
@@ -278,16 +278,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FBridgeL1_ImportAssets::RunTest(const FString& Parameters)
 {
-    UAgentBridgeSubsystem* Subsystem = GetSubsystem(*this);
+    UAgentBridgeSubsystem* Subsystem = GetSubsystem_Write(*this);
     if (!Subsystem) return false;
 
     // 1) 参数校验
     {
         const FBridgeResponse R1 = Subsystem->ImportAssets(TEXT(""), TEXT("/Game/Imported"));
-        TestTrue(TEXT("空 SourceDir -> validation_error"), IsValidationInvalidArgs(R1));
+        TestTrue(TEXT("空 SourceDir -> validation_error"), IsValidationInvalidArgs_Write(R1));
 
         const FBridgeResponse R2 = Subsystem->ImportAssets(TEXT("D:/NoSource"), TEXT(""));
-        TestTrue(TEXT("空 DestPath -> validation_error"), IsValidationInvalidArgs(R2));
+        TestTrue(TEXT("空 DestPath -> validation_error"), IsValidationInvalidArgs_Write(R2));
     }
 
     // 2) dry_run（无需真实源文件）
@@ -305,7 +305,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FBridgeL1_CreateBlueprintChild::RunTest(const FString& Parameters)
 {
-    UAgentBridgeSubsystem* Subsystem = GetSubsystem(*this);
+    UAgentBridgeSubsystem* Subsystem = GetSubsystem_Write(*this);
     if (!Subsystem) return false;
 
     const FString ParentClass = TEXT("/Script/Engine.Actor");
@@ -315,10 +315,10 @@ bool FBridgeL1_CreateBlueprintChild::RunTest(const FString& Parameters)
     // 1) 参数校验
     {
         const FBridgeResponse R1 = Subsystem->CreateBlueprintChild(TEXT(""), PackagePath);
-        TestTrue(TEXT("空 ParentClass -> validation_error"), IsValidationInvalidArgs(R1));
+        TestTrue(TEXT("空 ParentClass -> validation_error"), IsValidationInvalidArgs_Write(R1));
 
         const FBridgeResponse R2 = Subsystem->CreateBlueprintChild(ParentClass, TEXT(""));
-        TestTrue(TEXT("空 PackagePath -> validation_error"), IsValidationInvalidArgs(R2));
+        TestTrue(TEXT("空 PackagePath -> validation_error"), IsValidationInvalidArgs_Write(R2));
     }
 
     // 2) 不存在父类
@@ -355,3 +355,4 @@ bool FBridgeL1_CreateBlueprintChild::RunTest(const FString& Parameters)
 
     return true;
 }
+

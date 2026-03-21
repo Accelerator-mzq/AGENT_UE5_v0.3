@@ -29,7 +29,7 @@ Schema 校验（`validate_examples.py`）保留在 Python 端——UE5 没有 JS
 | 层次 | UE5 官方模块 | 注册方式 | Test Flag | 目的 |
 |---|---|---|---|---|
 | **L1** | Simple Automation Test | `IMPLEMENT_SIMPLE_AUTOMATION_TEST` | EditorContext + ProductFilter | 单接口正确性 |
-| **L2** | Automation Spec (BDD) | `BEGIN_DEFINE_SPEC` | EditorContext + SmokeFilter | 多接口闭环（写→读→验） |
+| **L2** | Automation Spec (BDD) | `BEGIN_DEFINE_SPEC` | EditorContext + ProductFilter | 多接口闭环（写→读→验） |
 | **L3** | Functional Testing | AFunctionalTest 子类 | EditorContext + ProductFilter | 完整 Demo 场景 |
 
 ### Session Frontend 树
@@ -169,7 +169,7 @@ Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/
 ```cpp
 BEGIN_DEFINE_SPEC(FBridgeL2_SpawnReadbackLoop,
     "Project.AgentBridge.L2.SpawnReadbackLoop",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::SmokeFilter)
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
     // 共享状态
     FBridgeTransform InputTransform;
     FString SpawnedActorPath;
@@ -201,7 +201,7 @@ void FBridgeL2_SpawnReadbackLoop::Define()
 | 维度 | L1 | L2 |
 |---|---|---|
 | 粒度 | 单接口 | **多接口协作** |
-| Test Flag | ProductFilter | **SmokeFilter**（更快） |
+| Test Flag | ProductFilter | **ProductFilter（UE5.5 控制台稳定路径）** |
 | 语法 | Simple Test | **Automation Spec (BDD)** |
 | 核心 | 返回值正确 | **写后读回一致性 + Undo 回滚** |
 | 生命周期 | RunTest 一次性 | **BeforeEach / AfterEach 自动管理** |
@@ -270,9 +270,9 @@ Content/Tests/
 | 执行方式 | 命令 | 覆盖层 | 适用场景 |
 |---|---|---|---|
 | **Session Frontend UI** | Editor → Window → Session Frontend → 勾选测试 → Run | L1/L2/L3 | 开发中手工验证 |
-| **Console Command** | `Automation RunTests Project.AgentBridge` | L1/L2 | Editor 内快速执行 |
+| **Console Command（两段式）** | `Automation RunTests Project.AgentBridge.L1` → `Automation RunTests Project.AgentBridge.L2` | L1/L2 | Editor 内快速执行（UE5.5 推荐） |
 | **Commandlet** | `UE5Editor-Cmd -run=AgentBridge -RunTests="..."` | L1/L2 | 无头执行 |
-| **UAT** | `RunUAT RunAutomationTests -filter="..."` | L1/L2 | CI/CD |
+| **UAT** | `RunUAT BuildCookRun -run -editortest -RunAutomationTest=Project.AgentBridge.L2 ...` | L1/L2 | CI/CD |
 | **Gauntlet** | `RunUAT RunGauntlet -Test=AgentBridge.AllTests` | L1/L2/L3 | 完整 CI/CD 流水线 |
 | **Schema 校验** | `python validate_examples.py --strict` | Schema 层 | 任何时候 |
 
@@ -283,6 +283,17 @@ Content/Tests/
 | AllTests | `RunUAT RunGauntlet -Test=AgentBridge.AllTests` | 600s | 每日构建 |
 | SmokeTests | `RunUAT RunGauntlet -Test=AgentBridge.SmokeTests` | 180s | 每次提交 |
 | SpecExecution | `RunUAT RunGauntlet -Test=AgentBridge.SpecExecution -SpecPath=xxx` | 300s | 验证特定 Spec |
+
+### 7.2 UE5.5 两段式控制台标准流程
+
+在 UE5.5 命令行/控制台路径中，L1 与 L2 采用固定顺序执行，避免聚合运行带来的不稳定因素：
+
+1. Phase 1：`Automation RunTests Project.AgentBridge.L1`
+2. Phase 2：`Automation RunTests Project.AgentBridge.L2`
+
+说明：
+- 不再使用 `Automation RunTests Project.AgentBridge` 作为验收口径。
+- VS Code 任务统一使用 `Automation Two-Phase (L1 then L2)` 作为默认测试入口。
 
 ---
 
