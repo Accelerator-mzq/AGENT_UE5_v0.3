@@ -439,16 +439,34 @@ FBridgeResponse UAgentBridgeSubsystem::GetDirtyAssets()
 		return ValidationError;
 	}
 
-	TArray<UPackage*> DirtyPackages;
-	FEditorFileUtils::GetDirtyContentPackages(DirtyPackages);
+	// 同时收集内容包与关卡包，避免遗漏“仅改关卡但未改内容资源”的脏状态。
+	TArray<UPackage*> DirtyContentPackages;
+	FEditorFileUtils::GetDirtyContentPackages(DirtyContentPackages);
+	TArray<UPackage*> DirtyWorldPackages;
+	FEditorFileUtils::GetDirtyWorldPackages(DirtyWorldPackages);
 
-	TArray<TSharedPtr<FJsonValue>> DirtyArray;
-	for (UPackage* Pkg : DirtyPackages)
+	TSet<FString> UniqueDirtyPackagePaths;
+	UniqueDirtyPackagePaths.Reserve(DirtyContentPackages.Num() + DirtyWorldPackages.Num());
+	for (UPackage* Pkg : DirtyContentPackages)
 	{
 		if (Pkg)
 		{
-			DirtyArray.Add(MakeShareable(new FJsonValueString(Pkg->GetPathName())));
+			UniqueDirtyPackagePaths.Add(Pkg->GetPathName());
 		}
+	}
+	for (UPackage* Pkg : DirtyWorldPackages)
+	{
+		if (Pkg)
+		{
+			UniqueDirtyPackagePaths.Add(Pkg->GetPathName());
+		}
+	}
+
+	TArray<TSharedPtr<FJsonValue>> DirtyArray;
+	DirtyArray.Reserve(UniqueDirtyPackagePaths.Num());
+	for (const FString& PackagePath : UniqueDirtyPackagePaths)
+	{
+		DirtyArray.Add(MakeShareable(new FJsonValueString(PackagePath)));
 	}
 
 	TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject());

@@ -15,7 +15,7 @@
 //   2. 在地图中放置 AAgentBridgeFunctionalTest Actor
 //   3. 设置 SpecPath 属性指向 Spec 文件
 //   4. Session Frontend → Run Level Test → 自动识别 FTEST_ 地图
-//   5. 或通过 Commandlet: -run=Automation -RunTests="Project.AgentBridge.L3"
+//   5. 或通过 Commandlet: -run=AgentBridge -RunTests="Project.AgentBridge.L3"
 //
 // Test Flag：EditorContext + ProductFilter
 

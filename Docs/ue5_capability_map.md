@@ -227,7 +227,7 @@ C++ Plugin 带来的收益：
 
 **在本方案中的角色**：**v0.3 已实装为 `UAgentBridgeCommandlet`**：
 - 无头执行 Spec 文件（`-run=AgentBridge -Spec="xxx.yaml"`）
-- 无头运行 Automation Test（`-run=Automation -RunTests="Project.AgentBridge"`）
+- 无头运行 Automation Test（`-run=AgentBridge -RunTests="Project.AgentBridge"`）
 - `MAP CHECK` 的无 GUI 执行路径
 - CI/CD 流水线中的标准入口——Gauntlet 通过 Commandlet 进入 Editor 执行测试
 
@@ -265,7 +265,7 @@ C++ Plugin 带来的收益：
 
 **Test Flag 分类**：`SmokeFilter` / `ProductFilter` / `EngineFilter` / `PerfFilter` / `StressFilter` + `EditorContext` / `ClientContext` / `ServerContext`
 
-**运行方式**：Session Frontend UI / Console Command `Automation RunTests` / Commandlet `-ExecCmds` / UAT `-RunAutomationTests`
+**运行方式**：Session Frontend UI / Console Command `Automation RunTests` / Commandlet `-ExecCmds` / UAT `BuildCookRun -run -editortest -RunAutomationTest`
 
 **在本方案中的角色**：**v0.3 已实装于 AgentBridgeTests Plugin**：
 - L1 测试（11 个）注册为 Simple Automation Test（`IMPLEMENT_SIMPLE_AUTOMATION_TEST` 宏）：Query 7 + Write 4
@@ -438,7 +438,7 @@ Bridge 封装层增加的价值（UE5 原生 API 不提供的）：
 | 容差比对 | C++ `TestNearlyEqual` | Automation Test 断言 | AgentBridgeTests Plugin |
 | L1 单接口测试 | `IMPLEMENT_SIMPLE_AUTOMATION_TEST`（11 个） | Simple Automation Test + ProductFilter | `L1_QueryTests.cpp` / `L1_WriteTests.cpp` |
 | L3.UITool 单接口测试 | `IMPLEMENT_SIMPLE_AUTOMATION_TEST`（4 个） | Simple Automation Test + ProductFilter | `L1_UIToolTests.cpp` |
-| L2 闭环测试 | `BEGIN_DEFINE_SPEC`（5 个） | Automation Spec + SmokeFilter | `L2_ClosedLoopSpecs.spec.cpp` / `L2_UIToolClosedLoopSpec.spec.cpp` |
+| L2 闭环测试 | `BEGIN_DEFINE_SPEC`（5 个） | Automation Spec + ProductFilter（UE5.5 控制台稳定路径） | `L2_ClosedLoopSpecs.spec.cpp` / `L2_UIToolClosedLoopSpec.spec.cpp` |
 | L3 完整 Demo | AFunctionalTest 子类 | Functional Testing + FTEST_ 地图 | `L3_FunctionalTestActor.cpp` |
 | L3→L1 交叉比对 | `FBridgeUIVerification` + `CrossVerifyUIOperation` | L3 UI 操作后 L1 独立读回比对 | `BridgeTypes.h` + `AgentBridgeSubsystem.cpp` |
 | Schema 校验 | validate_examples.py（Python 保留） | 无 UE5 对应 | **保留**（编排层自有能力） |

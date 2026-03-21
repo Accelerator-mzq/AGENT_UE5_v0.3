@@ -75,6 +75,22 @@ Agent 不得直接根据用户自然语言执行 UE5 修改。所有执行都必
 
 在没有读回和验证的情况下，不得报告"完成"。
 
+### 2.8 PowerShell 文本编码规范
+
+为避免中文乱码，仓库内 PowerShell 文本读写采用固定编码规则：
+
+- 所有 `Get-Content` 必须显式带 `-Encoding UTF8`
+- 所有 `Set-Content` / `Add-Content` 必须显式带 `-Encoding UTF8`
+- 禁止使用未指定编码的 `Get-Content` 读取 UTF-8 无 BOM 文本
+
+标准写法示例：
+
+```powershell
+Get-Content -Raw -Encoding UTF8 task.md
+Set-Content -Encoding UTF8 reports/example.md $content
+Add-Content -Encoding UTF8 reports/example.md "append line"
+```
+
 ---
 
 ## 3. 项目原则

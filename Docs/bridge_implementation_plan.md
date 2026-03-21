@@ -334,8 +334,8 @@ UE5Editor-Cmd.exe MyGame.uproject -run=AgentBridge \
 # UAT 构建
 RunUAT.bat BuildCookRun -project=MyGame.uproject -platform=Win64 -build -cook -stage -pak
 
-# UAT 运行测试
-RunUAT.bat RunAutomationTests -project=MyGame.uproject -filter="Project.AgentBridge"
+# UAT 运行测试（UE5.5 推荐）
+RunUAT.bat BuildCookRun -project=MyGame.uproject -run -editortest -RunAutomationTest=Project.AgentBridge
 
 # Gauntlet 完整 CI/CD
 RunUAT.bat RunGauntlet -project=MyGame.uproject -Test=AgentBridge.AllTests
