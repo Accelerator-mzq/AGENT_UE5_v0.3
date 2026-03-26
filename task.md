@@ -3331,6 +3331,30 @@ Step 4: 确认 Schema 目录统计
 - Schema 目录文件总数从 24 增加到 28
 - 新 example 的 status/data/warnings/errors 字段结构与 primitives.schema.json 一致
 ```
+
+### Task18 最终验证补充（2026-03-26）
+
+- Task18 已完成：为 Phase 2 新增接口补齐了 2 个反馈 Schema 和 2 个 example，并同步更新了校验映射、版本清单和 Schema 仓库说明。
+- 本轮新增文件：
+  - `Schemas/feedback/actor/get_component_state.response.schema.json`
+  - `Schemas/feedback/actor/get_material_assignment.response.schema.json`
+  - `Schemas/examples/get_component_state.example.json`
+  - `Schemas/examples/get_material_assignment.example.json`
+- 本轮同步更新：
+  - `Schemas/common/material.schema.json` 新增读回结构 `$defs.material_readback`，用于 `get_material_assignment` 复用 common schema
+  - `Scripts/validation/validate_examples.py` 映射表从 8 个 example 扩展到 10 个 example
+  - `Schemas/versions/v0.1_manifest.json` 和 `Schemas/README.md` 已更新为 10/10 口径
+- 最终校验结果：
+  - `validate_examples.py --strict` 输出 `Checked examples: 10 / Passed: 10 / Failed: 0`
+  - `Unmapped examples = 0`
+  - `Missing schema targets = 0`
+  - `Schemas/**/*.json` 全量语法检查通过，无非法 JSON
+
+证据：
+- 最终汇总：[reports/task18_evidence_2026-03-26/task18_final_validation_2026-03-26.md](reports/task18_evidence_2026-03-26/task18_final_validation_2026-03-26.md)
+- 严格校验日志：[reports/task18_evidence_2026-03-26/task18_validate_examples_clean_2026-03-26.log](reports/task18_evidence_2026-03-26/task18_validate_examples_clean_2026-03-26.log)
+- JSON 语法校验日志：[reports/task18_evidence_2026-03-26/task18_json_syntax_validation_2026-03-26.log](reports/task18_evidence_2026-03-26/task18_json_syntax_validation_2026-03-26.log)
+
 ---
 ---
 
