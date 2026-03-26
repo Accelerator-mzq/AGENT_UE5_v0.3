@@ -28,12 +28,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Async/Future.h"
 #include "EditorSubsystem.h"
 #include "BridgeTypes.h"
 #include "AgentBridgeSubsystem.generated.h"
 
 // L3 UI 工具层的操作结果（前向声明，完整定义在 AutomationDriverAdapter.h）
 struct FUIOperationResult;
+class FPendingUIOperation;
 
 UCLASS()
 class AGENTBRIDGE_API UAgentBridgeSubsystem : public UEditorSubsystem
@@ -338,6 +340,50 @@ public:
 	);
 
 	/**
+	 * 异步原型：启动一个 L3 UI 操作并立即返回 operation_id。
+	 *
+	 * 当前最小支持范围：
+	 *   - click_detail_panel_button
+	 *   - type_in_detail_panel_field
+	 *   - drag_asset_to_viewport
+	 *
+	 * 设计目的：
+	 *   - 验证 start_ui_operation / query_ui_operation 的异步链
+	 *   - 验证 AutomationDriver::Click() 能否脱离 RC 同步链正常执行
+	 *
+	 * 参数说明：
+	 *   OperationType  - 操作类型（当前仅支持 "click_detail_panel_button"）
+	 *   ActorPath      - 目标 Actor 路径
+	 *   Target         - 对 click_detail_panel_button 来说，是 ButtonLabel；
+	 *                    对 type_in_detail_panel_field 来说，是 PropertyPath；
+	 *                    对 drag_asset_to_viewport 来说，是 AssetPath
+	 *   Value          - 对 type_in_detail_panel_field 来说，是要输入的值；
+	 *                    对 drag_asset_to_viewport 来说，是 "X,Y,Z" 格式的投放坐标
+	 *   TimeoutSeconds - 单次 UI 操作允许的最长耗时
+	 *   bDryRun        - 仅校验参数，不真正入队执行
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AgentBridge|UITool")
+	FBridgeResponse StartUIOperation(
+		const FString& OperationType,
+		const FString& ActorPath,
+		const FString& Target,
+		const FString& Value = TEXT(""),
+		float TimeoutSeconds = 10.0f,
+		bool bDryRun = false
+	);
+
+	/**
+	 * 异步原型：查询 UI 操作当前状态。
+	 *
+	 * 返回：
+	 *   顶层 FBridgeResponse 仍使用现有 success/failed 枚举，
+	 *   真正的异步运行态放在 data.operation_state 中：
+	 *     pending / running / success / failed
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AgentBridge|UITool")
+	FBridgeResponse QueryUIOperation(const FString& OperationId);
+
+	/**
 	 * 检查 Automation Driver 是否可用。
 	 * @return true = AutomationDriver 模块已加载且可用
 	 */
@@ -392,4 +438,13 @@ private:
 		const FString& OperationName,
 		const struct FUIOperationResult& UIResult
 	) const;
+
+	/** 异步原型：刷新单个 UI 操作状态（查询时惰性推进） */
+	void RefreshPendingUIOperation(const TSharedPtr<FPendingUIOperation>& Operation);
+
+	/** 异步原型：将内部状态包装成统一响应 */
+	FBridgeResponse BuildPendingUIOperationResponse(const TSharedPtr<FPendingUIOperation>& Operation) const;
+
+	/** 异步原型：运行中的 UI 操作表（operation_id -> 状态） */
+	TMap<FString, TSharedPtr<FPendingUIOperation>> PendingUIOperations;
 };

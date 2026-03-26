@@ -2283,7 +2283,7 @@ Step 3: L3 宽容差
   result = verify_transform(expected, actual, tolerances=L3_TOLERANCES)
   assert result['status'] == 'success'  # delta=50/20/5 均 < 100
   print('L3 tolerance: PASS')
-  "
+![1774496980481](image/task/1774496980481.png)  "
 
 【验收标准】
 - verify_transform 完全匹配 → status="success" + mismatches=[]
@@ -2657,6 +2657,84 @@ Step 5: CLI exit code 验证
 - CLI --channel mock / --report 参数可用
 - exit code：success→0 / failed→1
 ```
+
+### Task14 L3 异步任务链设计补充（2026-03-26）
+
+- 背景：UE5 官方 `Automation Driver` 文档对同步 API 有明确线程约束；当前工程又以 RC 对象调用作为外部入口，因此 L3 UI 工具如果继续在 RC 同步链路里直接等待完整 UI 交互，存在阻塞和死锁风险。
+- 统一设计口径：
+  - RC 入口只负责启动 UI 任务，不在本次请求内等待 UI 操作完成
+  - L3 统一通过 `start_ui_operation()` / `query_ui_operation()` 暴露异步任务壳
+  - `query_ui_operation()` 返回 `pending / running / success / failed`
+  - UI 任务结束后，必须补做 L1 独立读回，不能只看 L3 本身的执行状态
+- 当前已落地的异步后端：
+  - `automation_driver_sync_off_game_thread_prototype`
+  - `detail_panel_text_entry_async_prototype`
+  - `drag_asset_to_viewport_async_prototype`
+- 当前代码落地状态：
+  - `click_detail_panel_button`：默认主路径已切到异步任务壳
+  - `type_in_detail_panel_field`：异步原型已打通；默认包装函数暂时仍保留直接调用口径，后续可继续统一
+  - `drag_asset_to_viewport`：已纳入统一异步壳；Python 包装层额外补了一层 `list_level_actors()` 的 L1 独立读回，用于避免“UI 执行成功但实际未落地”被误报为 success
+- 当前 drag 的真实状态：
+  - 异步任务壳已正常运行到终态
+  - 但最新真机探针里 `actors_before = 144`、`actors_after = 144`、`actors_created = 0`
+  - 因此当前包装层会把 `drag_asset_to_viewport` 的结果判为 `mismatch`，而不是 success
+- 结论：
+  - L3 异步任务链设计已正式落地，并已覆盖 click / type 原型 / drag
+  - Task14 当前可以确认“异步壳接入已完成”，但 `drag_asset_to_viewport` 的语义闭环仍需继续排查为什么拖拽动作没有形成新的关卡 Actor
+- 证据：
+  - `reports/task14_evidence_2026-03-26/task14_async_ui_operation_prototype_2026-03-26.md`
+  - `reports/task14_evidence_2026-03-26/task14_click_wrapper_async_default_switch_2026-03-26.md`
+  - `reports/task14_evidence_2026-03-26/task14_async_type_field_extension_2026-03-26.md`
+  - `reports/task14_evidence_2026-03-26/task14_async_drag_extension_2026-03-26.md`
+
+### Task14 构建修复补充（2026-03-26）
+
+- 为解决完整工程构建被 `AgentBridgeTests` 拖成非零退出的问题，本次对测试模块做了最小 Unity Build 兼容修复：
+  - `L1_QueryTests.cpp`：`GetSubsystem(...)` 重命名为 `GetQueryTestSubsystem(...)`
+  - `L2_ClosedLoopSpecs.spec.cpp`：`GetSubsystem(...)` 重命名为 `GetL2SpecSubsystem(...)`
+- 修复后，原先的 `GetSubsystem` 重定义编译错误已消失。
+- 首次完整构建剩余失败点变为 `UnrealEditor-AgentBridgeTests.dll` 被正在运行的 UE Editor 占用，属于链接阶段文件占用，不再是源码编译错误。
+- 关闭当前编辑器后重新执行完整 `Mvpv4TestCodexEditor` 构建，目标已成功通过，退出码为 `0`。
+- 当前工作环境已恢复：
+  - UE Editor 已重新进入 `Mvpv4TestCodex.uproject`
+  - RC API `http://localhost:30010/remote/info` 已返回 `200`
+- 证据：
+  - `reports/task14_evidence_2026-03-26/task14_full_build_after_getsubsystem_fix_2026-03-26.log`
+  - `reports/task14_evidence_2026-03-26/task14_full_build_after_getsubsystem_fix_rerun_2026-03-26.log`
+  - `reports/task14_evidence_2026-03-26/task14_getsubsystem_fix_build_validation_2026-03-26.md`
+  - `reports/task14_evidence_2026-03-26/task14_restore_env_after_build_fix_2026-03-26.log`
+
+### Task14 最终 runtime 验证补充（2026-03-26）
+
+- 本轮已回到 Task14 后续验证，并在真实 `UE5.5.4 Editor + RC API + cpp_plugin` 通道下，使用同一份 runtime Spec 完成端到端重跑。
+- 最终结果：
+  - `overall_status = success`
+  - `4 / 4 passed`
+  - `semantic = 2`
+  - `ui_tool = 2`
+- 本轮最终收口的关键修正：
+  - `type_in_detail_panel_field()` 显式把 `property_path / typed_value` 写回响应数据，避免与 drag 的 `target / value` 语义混淆
+  - `cross_verify_ui_operation()` 不再用宽泛条件把 drag 误判成字段输入
+  - 对 `type_in_detail_panel_field` 的 L1 读回补了一个很短的稳定窗口重试，解决 `query_ui_operation=success` 早于最终属性提交的偶发时序问题
+- 最终端到端结果：
+  - `truck_01`：success
+  - `crate_cluster_a`：success
+  - `chair_drag_01`：success（L3 拖拽完成，L1 读回确认新 Actor 已出现）
+  - `panel_field_edit_01`：success（L1 读回 `transform.location[0] = 1337.5`）
+- 本轮验证完成后，已对最终报告中涉及的临时 Actor 执行 Undo 和残留扫描：
+  - 成功 Undo `4` 次
+  - 后续继续 Undo 返回 `No transaction available to undo`
+  - `RESIDUE = []`
+  - `FINAL_ACTOR_COUNT = 144`
+- 结论：
+  - Task14 的 `cpp_plugin` runtime 闭环现在已经可以给出“真实环境端到端通过”的结论
+  - 当前这套 `L3 异步任务壳 + L1 交叉读回` 的工程口径已经在 click / type / drag 三条主路径上得到真实验证
+- 证据：
+  - `reports/task14_evidence_2026-03-26/task14_cpp_plugin_runtime_final_validation_2026-03-26.md`
+  - `reports/task14_evidence_2026-03-26/task14_cpp_plugin_runtime_report_final_rerun_2026-03-26.json`
+  - `reports/task14_evidence_2026-03-26/task14_cpp_plugin_runtime_stdout_final_rerun_2026-03-26.log`
+  - `reports/task14_evidence_2026-03-26/task14_cpp_plugin_runtime_post_final_cleanup_2026-03-26.log`
+
 ---
 ---
 
