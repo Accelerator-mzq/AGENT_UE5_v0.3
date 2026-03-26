@@ -60,7 +60,7 @@ namespace
 		FString LocatorPath;
 	};
 
-	static TSharedPtr<SLevelViewport> GetActiveLevelViewportWidget()
+	static TSharedPtr<SLevelViewport> GetUsableLevelViewportWidget()
 	{
 		if (!FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")))
 		{
@@ -68,7 +68,35 @@ namespace
 		}
 
 		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
-		return LevelEditorModule.GetFirstActiveLevelViewport();
+		if (TSharedPtr<SLevelViewport> ActiveViewport = LevelEditorModule.GetFirstActiveLevelViewport())
+		{
+			return ActiveViewport;
+		}
+
+		TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor();
+		if (!FirstLevelEditor.IsValid())
+		{
+			return nullptr;
+		}
+
+		const TArray<TSharedPtr<SLevelViewport>> Viewports = FirstLevelEditor->GetViewports();
+		for (const TSharedPtr<SLevelViewport>& Viewport : Viewports)
+		{
+			if (Viewport.IsValid() && Viewport->GetActiveViewport() != nullptr)
+			{
+				return Viewport;
+			}
+		}
+
+		for (const TSharedPtr<SLevelViewport>& Viewport : Viewports)
+		{
+			if (Viewport.IsValid())
+			{
+				return Viewport;
+			}
+		}
+
+		return nullptr;
 	}
 
 	static bool ResolveDropAssetObject(const FString& AssetPath, UObject*& OutAssetObject, FString& OutFailureReason)
@@ -881,6 +909,14 @@ bool FAutomationDriverAdapter::SelectActorAndOpenDetails(const FString& ActorPat
 	GEditor->SelectActor(TargetActor, /*bInSelected=*/true, /*bNotify=*/true, /*bSelectEvenIfHidden=*/true);
 	GEditor->NoteSelectionChange();
 
+	// 聚合自动化顺序下，Details 面板不一定已经打开。
+	// 显式唤起一次 Selection Details，可显著提高后续属性行定位稳定性。
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")))
+	{
+		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+		LevelEditorModule.SummonSelectionDetails();
+	}
+
 	// 给详情面板一点刷新时间，避免后续定位读到旧树。
 	FSlateApplication::Get().Tick();
 	FPlatformProcess::Sleep(0.15f);
@@ -905,12 +941,14 @@ FUIOperationResult FAutomationDriverAdapter::ClickDetailPanelButton(
 	if (!IsAvailable())
 	{
 		Result.FailureReason = TEXT("Automation Driver not available");
+		UE_LOG(LogTemp, Warning, TEXT("[AgentBridge L3] TypeInDetailPanelField failed: %s"), *Result.FailureReason);
 		return Result;
 	}
 
 	if (!SelectActorAndOpenDetails(ActorPath))
 	{
 		Result.FailureReason = FString::Printf(TEXT("Failed to select actor: %s"), *ActorPath);
+		UE_LOG(LogTemp, Warning, TEXT("[AgentBridge L3] TypeInDetailPanelField failed: %s"), *Result.FailureReason);
 		return Result;
 	}
 
@@ -1191,6 +1229,7 @@ FUIOperationResult FAutomationDriverAdapter::TypeInDetailPanelField(
 			TEXT("Property not found: '%s' (searched windows: %s)"),
 			*PropertyPath,
 			VisibleWindowTitles.Num() > 0 ? *FString::Join(VisibleWindowTitles, TEXT(", ")) : TEXT("<none>"));
+		UE_LOG(LogTemp, Warning, TEXT("[AgentBridge L3] TypeInDetailPanelField failed: %s"), *Result.FailureReason);
 		return Result;
 	}
 
@@ -1201,6 +1240,7 @@ FUIOperationResult FAutomationDriverAdapter::TypeInDetailPanelField(
 			TEXT("Editable input not found for property: '%s' (locator: %s)"),
 			*PropertyPath,
 			MatchedLocator.IsEmpty() ? TEXT("<unknown>") : *MatchedLocator);
+		UE_LOG(LogTemp, Warning, TEXT("[AgentBridge L3] TypeInDetailPanelField failed: %s"), *Result.FailureReason);
 		return Result;
 	}
 
@@ -1287,6 +1327,13 @@ FUIOperationResult FAutomationDriverAdapter::DragAssetToViewport(
 {
 	FUIOperationResult Result;
 	double StartTime = FPlatformTime::Seconds();
+	auto FailAndReturn = [&Result, StartTime](const FString& FailureReason) -> FUIOperationResult
+	{
+		Result.FailureReason = FailureReason;
+		Result.DurationSeconds = FPlatformTime::Seconds() - StartTime;
+		UE_LOG(LogTemp, Warning, TEXT("[AgentBridge L3] DragAssetToViewport failed: %s"), *FailureReason);
+		return Result;
+	};
 
 	// 这里不再依赖“鼠标按下/移动/抬起”去猜测 Slate 是否真的进入拖放会话。
 	// 根因上，Viewport 放置链最终认的是官方 DropObjectsAtCoordinates，
@@ -1296,26 +1343,23 @@ FUIOperationResult FAutomationDriverAdapter::DragAssetToViewport(
 	UObject* AssetObject = nullptr;
 	if (!ResolveDropAssetObject(AssetPath, AssetObject, Result.FailureReason))
 	{
-		Result.DurationSeconds = FPlatformTime::Seconds() - StartTime;
-		return Result;
+		return FailAndReturn(Result.FailureReason);
 	}
 
-	// 2. 获取当前活跃的 Level Viewport
-	TSharedPtr<SLevelViewport> LevelViewportWidget = GetActiveLevelViewportWidget();
+	// 2. 获取一个可用的 Level Viewport。
+	// 在自动化命令行会话里，“活跃 Viewport”有时为空，但实际仍存在可渲染的 Level Viewport。
+	TSharedPtr<SLevelViewport> LevelViewportWidget = GetUsableLevelViewportWidget();
 	if (!LevelViewportWidget.IsValid())
 	{
-		Result.FailureReason = TEXT("Active LevelViewport widget not available");
-		Result.DurationSeconds = FPlatformTime::Seconds() - StartTime;
-		return Result;
+		return FailAndReturn(TEXT("Usable LevelViewport widget not available"));
 	}
+	LevelViewportWidget->SetKeyboardFocusToThisViewport();
 
 	// 3. 世界坐标 → Viewport 像素坐标
 	FVector2D ViewportDropPos;
 	if (!WorldToScreen(DropLocation, ViewportDropPos))
 	{
-		Result.FailureReason = TEXT("Drop location is outside viewport");
-		Result.DurationSeconds = FPlatformTime::Seconds() - StartTime;
-		return Result;
+		return FailAndReturn(TEXT("Drop location is outside viewport"));
 	}
 
 	// 4. 直接走官方 Viewport 放置路径，仍然保留编辑器拖放的放置行为。
@@ -1338,11 +1382,9 @@ FUIOperationResult FAutomationDriverAdapter::DragAssetToViewport(
 
 	if (!bDropped)
 	{
-		Result.FailureReason = FString::Printf(
+		return FailAndReturn(FString::Printf(
 			TEXT("Viewport drop did not create actors for asset: %s"),
-			*AssetPath);
-		Result.DurationSeconds = FPlatformTime::Seconds() - StartTime;
-		return Result;
+			*AssetPath));
 	}
 
 	Result.DebugLocatorPath = AssetPath;
@@ -1424,20 +1466,23 @@ bool FAutomationDriverAdapter::WorldToScreen(const FVector& WorldLocation, FVect
 {
 	if (!GEditor) return false;
 
-	FViewport* ActiveViewport = GEditor->GetActiveViewport();
-	if (!ActiveViewport) return false;
-
-	// 查找活跃 Viewport Client
-	FLevelEditorViewportClient* ViewportClient = nullptr;
-	for (FLevelEditorViewportClient* Client : GEditor->GetLevelViewportClients())
+	TSharedPtr<SLevelViewport> LevelViewportWidget = GetUsableLevelViewportWidget();
+	if (!LevelViewportWidget.IsValid())
 	{
-		if (Client && Client->Viewport == ActiveViewport)
-		{
-			ViewportClient = Client;
-			break;
-		}
+		return false;
 	}
-	if (!ViewportClient) return false;
+
+	FViewport* ActiveViewport = LevelViewportWidget->GetActiveViewport();
+	if (!ActiveViewport)
+	{
+		return false;
+	}
+
+	FLevelEditorViewportClient* ViewportClient = &LevelViewportWidget->GetLevelViewportClient();
+	if (!ViewportClient)
+	{
+		return false;
+	}
 
 	// 构建场景视图
 	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(

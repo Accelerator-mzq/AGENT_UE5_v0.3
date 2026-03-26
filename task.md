@@ -3811,6 +3811,63 @@ Step 8: L1+L2+L3 合计运行
 - L1+L2+L3 合计运行不冲突
 ```
 
+### Task20 最终验证补充（2026-03-26）
+
+- 最终结论：`PASS`
+- 最终汇总证据：`reports/task20_evidence_2026-03-26/task20_final_validation_2026-03-26.md`
+
+本轮最终结果如下：
+
+- 编译：通过
+  - 说明：本轮 `AutomationDriverAdapter.cpp`、`L1_UIToolTests.cpp`、`L2_UIToolClosedLoopSpec.spec.cpp` 已重新编译链接成功
+  - 证据：`reports/task20_evidence_2026-03-26/task20_build_after_details_summon_2026-03-26.log`
+- L1.UITool：通过
+  - 说明：命令行发现 `4` 个测试，最终 `EXIT CODE: 0`
+  - 证据：`reports/task20_evidence_2026-03-26/task20_l1_uitool_rerun_2026-03-26.log`
+- L2.UITool：通过
+  - 说明：命令行发现 `8` 个测试（`2` 个 Spec / `8` 个 It），最终 `EXIT CODE: 0`
+  - 证据：`reports/task20_evidence_2026-03-26/task20_l2_uitool_final_2026-03-26.log`
+- Python Mock：通过
+  - 说明：`click / type / drag` 三个 L3 接口均返回 `success + tool_layer=L3_UITool`
+  - 证据：`reports/task20_evidence_2026-03-26/task20_python_mock_2026-03-26.log`
+- Project.AgentBridge 聚合：通过
+  - 说明：`Automation RunTests Project.AgentBridge` 最终 `EXIT CODE: 0`，证明 `L1 + L2 + L3` 合计运行不冲突
+  - 证据：`reports/task20_evidence_2026-03-26/task20_project_agentbridge_aggregate_rerun_2026-03-26.log`
+
+关键验收项说明：
+
+- `T1-13` 空参数返回 `validation_error`
+  - 说明：L1 测试源码已显式断言 `Empty actor` / `Empty label` 两个分支，且整套 L1.UITool 测试最终通过
+  - 证据：
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L1_UIToolTests.cpp`
+    - `reports/task20_evidence_2026-03-26/task20_l1_uitool_rerun_2026-03-26.log`
+- `T1-15` `dry_run` 返回 `tool_layer` 与 `drop_location`
+  - 说明：L1 测试源码已显式断言，且整套 L1.UITool 测试最终通过
+  - 证据：
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L1_UIToolTests.cpp`
+    - `reports/task20_evidence_2026-03-26/task20_l1_uitool_rerun_2026-03-26.log`
+- Driver 可用时 `DragAssetToViewport` 实际执行成功并完成 `L3→L1` 交叉比对
+  - 说明：L1 与聚合日志均记录 `Cross-verification: consistent=true, final_status=success`
+  - 证据：
+    - `reports/task20_evidence_2026-03-26/task20_l1_uitool_rerun_2026-03-26.log`
+    - `reports/task20_evidence_2026-03-26/task20_project_agentbridge_aggregate_rerun_2026-03-26.log`
+- Driver 不可用时 graceful degradation
+  - 说明：本机本轮为 Driver 可用口径，因此未触发降级分支；但 L1 测试保留 `SKIP_IF_DRIVER_UNAVAILABLE()`，L2 Spec 保留 `bDriverAvailable` 守卫，降级路径仍存在
+  - 证据：
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L1_UIToolTests.cpp`
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L2_UIToolClosedLoopSpec.spec.cpp`
+
+本轮额外修复：
+
+- 为 L1/L2 Drag 测试增加稳定落点计算，避免把对象拖到视口不可见区域
+  - 文件：
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L1_UIToolTests.cpp`
+    - `Plugins/AgentBridgeTests/Source/AgentBridgeTests/Private/L2_UIToolClosedLoopSpec.spec.cpp`
+- 在 `SelectActorAndOpenDetails()` 中显式唤起 Details 面板，解决聚合顺序下 `TypeInDetailPanelField` 偶发找不到 `RelativeLocation.X` 属性行的问题
+  - 文件：`Plugins/AgentBridge/Source/AgentBridge/Private/AutomationDriverAdapter.cpp`
+- 修复 Python Mock 下 `drag_asset_to_viewport()` 误判 `mismatch` 的问题，统一返回 `success`
+  - 文件：`Scripts/bridge/ui_tools.py`
+
 ---
 ---
 

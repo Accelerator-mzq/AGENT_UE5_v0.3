@@ -323,6 +323,15 @@ def drag_asset_to_viewport(
             errors=[make_error("INVALID_ARGS", "drop_location must be a list of 3 numbers")]
         )
 
+    channel = get_channel()
+    if _channel_value(channel) == BridgeChannel.MOCK.value:
+        response = _mock_ui_tool_response("drag_asset_to_viewport", {
+            "asset_path": asset_path,
+            "drop_location": list(drop_location),
+        })
+        response.setdefault("data", {})["drop_location"] = list(drop_location)
+        return response
+
     # 拖拽也统一纳入异步任务壳，避免在 RC 同步链里等待整段 Slate/Viewport 交互结束。
     # 同时补一层最基本的 L1 读回：比较前后 actor 列表，避免“UI 执行成功但实际未落地”被误报为 success。
     before_response = list_level_actors()
