@@ -1,4 +1,4 @@
 [submodule "Plugins/AgentUE5Framework"]
 	path = Plugins/AgentUE5Framework
-	url = D:/Unreal Projects/AgentUE5Framework_repo
+	url = ../AgentUE5Framework_repo
 	ignore = untracked
