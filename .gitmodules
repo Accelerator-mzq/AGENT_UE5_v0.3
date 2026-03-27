@@ -1,4 +1,4 @@
-[submodule "Plugins/AgentUE5Framework"]
-	path = Plugins/AgentUE5Framework
-	url = ../AgentUE5Framework_repo
+[submodule "Plugins/AgentBridge"]
+	path = Plugins/AgentBridge
+	url = ../AgentBridge_repo
 	ignore = untracked
