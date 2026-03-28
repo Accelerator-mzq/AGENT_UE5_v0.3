@@ -1,99 +1,108 @@
-﻿# AGENTS.md — Mvpv4TestCodex 项目
+# AGENTS.md — Mvpv4TestCodex 项目
 
-> 目标引擎版本：UE5.5.4 | 适用范围：本项目根目录与项目壳层面的 Agent 协作规则
+> 目标引擎版本：UE5.5.4 | 文档版本：v0.3
+>
+> 本文件定义 **本项目** 的 AI Agent 行为规则。
+> 通用的 AgentBridge 插件规则见 → `Plugins/AgentBridge/AGENTS.md`
 
-## 1. 通用规则入口
+---
 
-本项目使用 `AgentBridge` 插件作为受控编排层。凡是调用桥接工具、编写 Spec、执行写后读回或使用 L1/L2/L3 工具时，Agent 必须先遵守插件通用规则：
+## 1. 通用规则（引用）
 
-→ `Plugins/AgentBridge/AGENTS.md`
+本项目使用 AgentBridge 插件，Agent 必须遵守插件通用规则：
+
+→ **`Plugins/AgentBridge/AGENTS.md`** — 包含核心规则、禁止模糊字段清单、工具使用规则（L1/L2/L3）、执行流程、读回验证规则、Spec 校验规则、报告规则、执行通道规则、能力边界
+
+Agent 进入本项目后，应先阅读上述文件了解 AgentBridge 的完整行为框架。
+
+---
 
 ## 2. 本项目特定规则
 
-### 2.1 项目定位
+### 2.1 项目原则
 
-本仓库不是普通游戏项目，而是一个用于承载和验证 `AgentBridge` 插件的 UE5.5.4 项目壳。项目根目录负责：
+- C++ 为主，Blueprint 为薄层（资产绑定、可视化拼装、数据配置、动画/UI 桥接）
+- 编辑器是受控执行环境，不是可自由点击的 GUI
+- 优先使用结构化工具调用
+- 所有结果必须可验证、可审计
+- 当前目标引擎版本为 UE5.5.4，所有能力描述基于此版本的真实 API
 
-- `Mvpv4TestCodex.uproject` 与项目级配置
-- `Config/`、`Content/`、`Source/` 等宿主工程内容
-- `.vscode/tasks.json` 等项目级启动与验证入口
+### 2.2 工具层级启用状态
 
-### 2.2 默认修改范围
+| 工具层级 | 本项目状态 | 说明 |
+|---------|-----------|------|
+| L1 语义工具 | ✅ 启用 | 默认主干，所有 4 个写接口 + 7 个反馈接口 |
+| L2 编辑器服务工具 | ✅ 启用 | 构建/测试/验证 |
+| L3 UI 工具 | ✅ 启用 | 受约束使用，遵守插件 AGENTS.md §4.3 规则 |
 
-若任务未特别说明，优先在以下范围内工作：
+> 如果某个项目需要禁用 L3，在此处标注 `❌ 禁用` 即可。
 
-- `Plugins/AgentBridge/`
-- `Plugins/AgentBridge/AgentBridgeTests/`
-- 项目级启动与验证脚本
-- 测试地图与验证资源（如 `/Game/Tests`、`/Temp`）
+### 2.3 本项目写操作范围
 
-不要无故扩散到无关游戏内容。
+当前开发阶段无特殊范围限制，所有已定义的写接口均可使用。
 
-### 2.3 L3 UI 工具在本项目中允许使用
+### 2.4 聊天面板文件引用格式
 
-本项目保留 `L3 UI` 工具用于验证闭环、功能测试和 Task19/Task20 相关回归，但仍必须遵守插件级规则：
+- 在聊天面板中引用本地文件时，链接目标必须使用“以 `/` 开头的 Windows 本地绝对路径”，例如 `/D:/UnrealProjects/Mvpv4TestCodex/AGENTS.md#L1`。
+- 不要使用 `D:/...`、`d:/...` 或普通网页 URL 写法，否则 VS Code 聊天面板会把它当成浏览器链接。
+- 推荐显示文字格式：`文件名 (line N)`。
+- 推荐链接目标格式：`/D:/.../文件#L行号`。
 
-- 先证明确实没有更合适的 L1 路径
-- 执行后必须做 L3→L1 交叉比对
-- 不得用来做高风险不可逆修改
+### 2.5 附加文档路径
 
-### 2.4 证据与报告目录
+Agent 在本项目中需要参考的设计文档均位于插件内部：
 
-本项目新增的验证证据默认放在：
+| 文档 | 路径 |
+|------|------|
+| 插件说明 | `Plugins/AgentBridge/README.md` |
+| 通用 Agent 规则 | `Plugins/AgentBridge/AGENTS.md` |
+| UE5 能力映射 | `Plugins/AgentBridge/Docs/ue5_capability_map.md` |
+| 总体架构 | `Plugins/AgentBridge/Docs/architecture_overview.md` |
+| MVP 边界 | `Plugins/AgentBridge/Docs/mvp_scope.md` |
+| 工具契约 | `Plugins/AgentBridge/Docs/tool_contract_v0_1.md` |
+| 字段规范 | `Plugins/AgentBridge/Docs/field_specification_v0_1.md` |
+| 反馈接口清单 | `Plugins/AgentBridge/Docs/feedback_interface_catalog.md` |
+| 写-读映射关系 | `Plugins/AgentBridge/Docs/feedback_write_mapping.md` |
+| Bridge 实现方案 | `Plugins/AgentBridge/Docs/bridge_implementation_plan.md` |
+| 冒烟测试方案 | `Plugins/AgentBridge/Docs/mvp_smoke_test_plan.md` |
+| 接口验证与错误处理 | `Plugins/AgentBridge/Docs/bridge_verification_and_error_handling.md` |
+| Orchestrator 设计 | `Plugins/AgentBridge/Docs/orchestrator_design.md` |
 
-- `Plugins/AgentBridge/reports/...`
+---
 
-如果某个任务已有固定产物路径，则遵循该任务约定。
+## 3. 当前推进状态
 
-### 2.5 任务清单入口
+### 已完成
 
-当前任务清单主文件位于：
+- ✅ 本地 schema / example / validate 校验链跑通
+- ✅ task.md 1-20 全部跑通
+- ✅ Bridge 三通道架构实装（C++ Plugin 核心 + Python + Remote Control API）
+- ✅ L1/L2/L3 三层受控工具体系全部实装
+- ✅ 验证层实装于 UE5 Automation Test Framework（L1 Simple Test + L2 Spec + L3 Functional Test）
+- ✅ Gauntlet CI/CD 测试配置
 
-- `task.md`
+### 当前最高优先级
 
-项目级 Agent 在处理任务时，应把它视为当前项目的执行清单来源。
+1. ⬜ spawn_actor → get_actor_state → get_actor_bounds 端到端闭环
+2. ⬜ Agent → Editor 通信方案落地（Remote Control API HTTP）
+3. ⬜ Orchestrator 实现（参考 UE5 Gauntlet 编排模式）
+4. ⬜ Phase 2 扩展接口开发
 
-## 3. 项目协作约定
+### 当前已知卡点
 
-### 3.1 PowerShell 编码
+- Agent→Editor 通信方案需选型落地（推荐 Remote Control API HTTP）
+- Orchestrator 尚未实现
+- Phase 2 反馈接口（get_material_assignment 等）的 Tool Contract 待补充
 
-为避免中文乱码，读取和写入文本时必须显式声明 UTF-8 编码：
+---
 
-- `Get-Content -Raw -Encoding UTF8`
-- `Set-Content -Encoding UTF8`
-- `Add-Content -Encoding UTF8`
+## 4. 推荐阅读顺序
 
-### 3.2 文档引用顺序
+Agent 进入本项目的推荐阅读顺序：
 
-处理本项目任务时，推荐优先阅读：
-
-1. 本文件 `AGENTS.md`
-2. `Plugins/AgentBridge/AGENTS.md`
-3. `README.md`
-4. `Plugins/AgentBridge/README.md`
-5. `task.md`
-6. 当前任务涉及的 `Docs/`、`Schemas/`、`reports/`
-
-### 3.3 普通打开项目与测试打开项目要区分
-
-- 普通打开 `Mvpv4TestCodex.uproject` 时，不应把 `AgentBridgeTests` 作为默认必需插件
-- 运行自动化测试、Gauntlet、命令行验证时，再显式启用 `AgentBridgeTests`
-
-### 3.4 VS Code 文件引用格式
-
-- Agent 在聊天面板中引用本项目文件时，应优先使用 VS Code 可直接跳转的 Markdown 链接格式
-- 链接目标必须使用“以 `/` 开头的 Windows 绝对路径 + `#L行号`”形式，例如：`[AGENTS.md (line 44)](/D:/UnrealProjects/Mvpv4TestCodex/AGENTS.md#L44)`
-- 不要使用不带前导 `/` 的 `D:/...` 链接，也不要把普通网页链接样式当作文件跳转链接
-- 如果项目根目录名称或盘符发生变化，应按当前实际绝对路径重新生成上述格式的链接
-
-## 4. 当前文档分层
-
-本项目的四份入口文档分工如下：
-
-- 项目级规则：`AGENTS.md`
-- 项目级说明：`README.md`
-- 插件级规则：`Plugins/AgentBridge/AGENTS.md`
-- 插件级说明：`Plugins/AgentBridge/README.md`
-
-如果以后把 `AgentBridge` 拷贝到其他项目，应优先保留插件目录下的两份文档；项目根目录两份文档只对当前仓库生效。
-
+1. 本文件（`AGENTS.md`）— 了解项目特定规则和当前状态
+2. `Plugins/AgentBridge/README.md` — 了解插件定义、架构和功能清单
+3. `Plugins/AgentBridge/AGENTS.md` — 了解通用 Agent 规则
+4. `Plugins/AgentBridge/Docs/ue5_capability_map.md` — 了解 UE5 官方能力映射
+5. `Plugins/AgentBridge/Docs/tool_contract_v0_1.md` — 了解工具契约
+6. `task.md` — 了解当前任务清单
