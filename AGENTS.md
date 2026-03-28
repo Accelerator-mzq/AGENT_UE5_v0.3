@@ -70,39 +70,84 @@ Agent 在本项目中需要参考的设计文档均位于插件内部：
 
 ---
 
-## 3. 当前推进状态
+## 3. 文档治理规则
 
-### 已完成
+### 3.1 文档分层
 
-- ✅ 本地 schema / example / validate 校验链跑通
-- ✅ task.md 1-20 全部跑通
-- ✅ Bridge 三通道架构实装（C++ Plugin 核心 + Python + Remote Control API）
-- ✅ L1/L2/L3 三层受控工具体系全部实装
-- ✅ 验证层实装于 UE5 Automation Test Framework（L1 Simple Test + L2 Spec + L3 Functional Test）
-- ✅ Gauntlet CI/CD 测试配置
+本项目文档分为三个信任层级：
 
-### 当前最高优先级
+- **L0 入口 + L1 当前生效**（`AGENTS.md` / `task.md` / `Docs/Current/`）：当前开发依据
+- **L2 Canonical**（`Plugins/AgentBridge/` 下 Docs / Schemas / Specs）：长期框架规范
+- **L3–L5**（`Docs/History/` / `Decisions/` / `Proposals/`）：按需参考，不作为默认依据
 
-1. ⬜ spawn_actor → get_actor_state → get_actor_bounds 端到端闭环
-2. ⬜ Agent → Editor 通信方案落地（Remote Control API HTTP）
-3. ⬜ Orchestrator 实现（参考 UE5 Gauntlet 编排模式）
-4. ⬜ Phase 2 扩展接口开发
+### 3.2 阅读顺序
 
-### 当前已知卡点
+Agent 进入本项目后，按以下顺序阅读：
 
-- Agent→Editor 通信方案需选型落地（推荐 Remote Control API HTTP）
-- Orchestrator 尚未实现
-- Phase 2 反馈接口（get_material_assignment 等）的 Tool Contract 待补充
+1. `AGENTS.md`（本文件）— 规则和导航
+2. `Docs/Current/00_Index.md` — 当前阶段索引
+3. `Docs/Current/01_Project_Baseline.md` — 项目基线
+4. `Docs/Current/02_Current_Phase_Goals.md` — 本期目标
+5. `task.md` — 当前任务清单
+6. `Plugins/AgentBridge/README.md` — 插件定义（首次进入必读）
+7. `Plugins/AgentBridge/AGENTS.md` — 通用 Agent 规则（首次进入必读）
+8. 与当前任务相关的 `Docs/Current/*` 和 `Plugins/AgentBridge/Docs/*`
 
----
+步骤 1–5 为必读。步骤 6–7 首次进入必读，后续按需复查。
 
-## 4. 推荐阅读顺序
+### 3.3 文档权威优先级
 
-Agent 进入本项目的推荐阅读顺序：
+1. `Docs/Current/*`（最高——当前项目基线）
+2. `Plugins/AgentBridge/Docs/*`（长期框架真相）
+3. `Docs/Decisions/*`（决策背景）
+4. `Docs/Proposals/*`（候选方案）
+5. `Docs/History/*`（历史追溯）
 
-1. 本文件（`AGENTS.md`）— 了解项目特定规则和当前状态
-2. `Plugins/AgentBridge/README.md` — 了解插件定义、架构和功能清单
-3. `Plugins/AgentBridge/AGENTS.md` — 了解通用 Agent 规则
-4. `Plugins/AgentBridge/Docs/ue5_capability_map.md` — 了解 UE5 官方能力映射
-5. `Plugins/AgentBridge/Docs/tool_contract_v0_1.md` — 了解工具契约
-6. `task.md` — 了解当前任务清单
+如果历史文档与当前文档冲突，以当前文档为准。
+如果草案与当前文档冲突，以当前文档为准。
+
+### 3.4 读取禁止行为
+
+Agent 默认不得：
+
+- 扫描整个 `Docs/History/` 作为背景输入
+- 将 `Docs/Proposals/` 中未批准的草案当作正式规则
+- 将历史阶段的待办事项直接作为当前任务执行
+- 混合引用不同阶段的结论而不标注来源
+
+仅在以下情况允许读取 `Docs/History/`：
+
+- `Docs/Current/` 中的文件显式引用了某历史文件
+- 当前任务明确涉及兼容旧方案
+- 被明确要求追溯历史设计原因
+
+### 3.5 写入规则
+
+Agent 不得：
+
+- 在项目根任意新增并列的"总设计文档"
+- 在未更新 `Docs/Current/` 基线前，直接把临时设计写进 `Plugins/AgentBridge/Docs/`
+- 将阶段性的计划或任务写进插件 canonical 目录
+- 把未经评审的设计直接写入 `Docs/Current/01_Project_Baseline.md`
+
+新增能力的文档归属：
+
+- 项目阶段相关的结论 → `Docs/Current/`
+- 框架级的接口/规范变更 → `Plugins/AgentBridge/Docs/`（须与插件版本升级同步）
+- 未定稿的设计提案 → `Docs/Proposals/`
+- 关键决策记录 → `Docs/Decisions/`
+
+### 3.6 阶段切换
+
+当 Agent 检测到以下信号时，视为发生了阶段切换：
+
+- `Docs/Current/00_Index.md` 中的阶段名称变更
+- `task.md` 内容被完全替换
+- 被明确告知进入新阶段
+
+阶段切换后，必须重新完整阅读步骤 1–5 的全部文件，不可依赖上一期的缓存记忆。
+
+### 3.7 附加说明
+
+- `Plugins/AgentBridge/Roadmap/` 下的内容为历史开发计划，不作为当前开发依据，不属于 canonical 框架文档
+- 设计文档均位于插件内部，完整列表见第 2.5 节"附加文档路径"
