@@ -36,6 +36,11 @@ Mvpv4TestCodex/
 ├── AGENTS.md                        ← 本项目的 Agent 行为规则
 ├── README.md                        ← 本文件
 ├── task.md                          ← 编码 Agent 任务清单（task 1-20 已跑通）
+├── Docs/
+│   ├── Current/                     ← 当前阶段生效文档
+│   ├── History/                     ← 历史归档
+│   ├── Decisions/                   ← 决策记录（ADR）
+│   └── Proposals/                   ← 设计草案
 │
 ├── Content/                         ← UE5 资产
 ├── Config/                          ← UE5 配置
@@ -60,10 +65,12 @@ Mvpv4TestCodex/
 
 如果你是 AI Agent 或使用 AI Agent 参与本项目开发，请按以下顺序阅读：
 
-1. **[`AGENTS.md`](AGENTS.md)** — 本项目的 Agent 行为规则（包含项目特定配置和当前状态）
-2. **[`Plugins/AgentBridge/README.md`](Plugins/AgentBridge/README.md)** — AgentBridge 插件说明
-3. **[`Plugins/AgentBridge/AGENTS.md`](Plugins/AgentBridge/AGENTS.md)** — 通用 Agent 规则
+1. **[`AGENTS.md`](AGENTS.md)** — 本项目的 Agent 行为规则与文档治理规则
+2. **[`Docs/Current/00_Index.md`](Docs/Current/00_Index.md)** — 当前阶段文档索引
+3. **[`Docs/Current/01_Project_Baseline.md`](Docs/Current/01_Project_Baseline.md)** — 项目基线
 4. **[`task.md`](task.md)** — 当前任务清单
+5. **[`Plugins/AgentBridge/README.md`](Plugins/AgentBridge/README.md)** — AgentBridge 插件说明
+6. **[`Plugins/AgentBridge/AGENTS.md`](Plugins/AgentBridge/AGENTS.md)** — 通用 Agent 规则
 
 ## 当前进度
 
