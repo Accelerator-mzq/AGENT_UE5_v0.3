@@ -52,7 +52,7 @@
 
 - 引擎版本：UE5.5.4
 - 插件版本：v0.3.0
-- 项目结构：项目壳（Mvpv4TestCodex）+ AgentBridge 插件（Git Submodule）
+- 项目结构：项目壳（Mvpv4TestCodex）+ AgentBridge 插件（父仓库内置目录）
 
 ## 已知限制
 

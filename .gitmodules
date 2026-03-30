@@ -1,4 +1,0 @@
-[submodule "Plugins/AgentBridge"]
-	path = Plugins/AgentBridge
-	url = ../AgentBridge
-	ignore = untracked
