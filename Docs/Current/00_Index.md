@@ -20,7 +20,7 @@
 - 项目级基线：本目录全部文件
 - 框架级规范：`Plugins/AgentBridge/Docs/` + `Schemas/` + `Specs/`
 - 实施方案：`Docs/History/Proposals/Phase3_Implementation_Plan.md`（已归档）
-- 当前任务：根目录 `task1.md`
+- 当前任务：Phase 4 待创建（Phase 3 已归档→`Docs/History/Tasks/task1_phase3.md`）
 
 ## 禁止默认读取
 

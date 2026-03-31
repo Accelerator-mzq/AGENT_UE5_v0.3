@@ -109,7 +109,7 @@
 ## 已完成任务
 
 - Phase 1-2：task.md TASK 01–20 全部跑通
-- Phase 3：task1.md TASK 01–08 已完成（simulated 模式端到端）
+- Phase 3：Docs/History/Tasks/task1_phase3.md TASK 01–08 已完成（simulated 模式端到端）
 - Phase 3 遗留：TASK 09–11 UE5 真实调用联调待做
 
 ## 当前架构状态

@@ -20,7 +20,7 @@ AgentBridge 不只是工具接口插件，而是包含编译前端（Skill Compi
 1. `AGENTS.md` — 项目级 Agent 规则
 2. `Docs/Current/00_Index.md` — 当前阶段索引
 3. `Docs/Current/05_Implementation_Boundary.md` — 实施边界
-4. `task1.md` — 当前任务清单
+4. `Docs/History/Tasks/task1_phase3.md` — Phase 3 任务清单（已归档）
 5. `Plugins/AgentBridge/README.md` — 插件说明
 6. `Plugins/AgentBridge/AGENTS.md` — 通用 Agent 规则
 
@@ -123,4 +123,4 @@ python compiler_main.py
 
 Phase 3 — Greenfield + Boardgame + Reviewed Handoff 最小闭环（已完成）
 下一阶段：Phase 4 — Static Spec Base + Spec 自动生成
-详见 `task1.md`
+详见 `Docs/History/Tasks/task1_phase3.md`（已归档）

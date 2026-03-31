@@ -42,7 +42,7 @@ AgentBridge 不只是工具接口插件，而是包含**通用编译前端（Ski
 Mvpv4TestCodex/
 ├── AGENTS.md                        ← 本项目的 Agent 行为规则
 ├── README.md                        ← 本文件
-├── task1.md                         ← 当前阶段任务清单（Phase 3）
+├── task1.md                         ← Phase 3 任务清单（已归档→Docs/History/Tasks/）
 ├── run_greenfield_demo.py           ← 端到端运行入口
 │
 ├── ProjectInputs/                   ← ★ 项目输入源
@@ -101,7 +101,7 @@ Mvpv4TestCodex/
 2. **[`Docs/Current/00_Index.md`](Docs/Current/00_Index.md)** — 当前阶段文档索引
 3. **[`Docs/Current/01_Project_Baseline.md`](Docs/Current/01_Project_Baseline.md)** — 项目基线
 4. **[`Docs/Current/05_Implementation_Boundary.md`](Docs/Current/05_Implementation_Boundary.md)** — 实施边界
-5. **[`task1.md`](task1.md)** — 当前任务清单
+5. **[`Docs/History/Tasks/task1_phase3.md`](Docs/History/Tasks/task1_phase3.md)** — Phase 3 任务清单（已归档）
 6. **[`Plugins/AgentBridge/README.md`](Plugins/AgentBridge/README.md)** — AgentBridge 插件说明
 7. **[`Plugins/AgentBridge/AGENTS.md`](Plugins/AgentBridge/AGENTS.md)** — 通用 Agent 规则
 
