@@ -70,7 +70,7 @@ Agent 在本项目中需要参考的文档：
 | 项目基线 | `Docs/Current/01_Project_Baseline.md` |
 | Phase 3 目标 | `Docs/Current/02_Current_Phase_Goals.md` |
 | 实施边界 | `Docs/Current/05_Implementation_Boundary.md` |
-| 当前任务 | `task1.md` |
+| 当前任务 | Phase 4 待创建（Phase 3 已归档→`Docs/History/Tasks/task1_phase3.md`） |
 
 **插件层文档**：
 
@@ -96,7 +96,7 @@ Agent 在本项目中需要参考的文档：
 
 本项目文档分为三个信任层级：
 
-- **L0 入口 + L1 当前生效**（`AGENTS.md` / `task1.md` / `Docs/Current/`）：当前开发依据
+- **L0 入口 + L1 当前生效**（`AGENTS.md` / `Docs/Current/`）：当前开发依据
 - **L2 Canonical**（`Plugins/AgentBridge/` 下 Docs / Schemas / Specs / Scripts/compiler/）：长期框架规范
 - **L3–L5**（`Docs/History/` / `Decisions/` / `Proposals/`）：按需参考，不作为默认依据
 
@@ -109,7 +109,7 @@ Agent 进入本项目后，按以下顺序阅读：
 3. `Docs/Current/01_Project_Baseline.md` — 项目基线
 4. `Docs/Current/02_Current_Phase_Goals.md` — 本期目标
 5. `Docs/Current/05_Implementation_Boundary.md` — 实施边界
-6. `task1.md` — 当前任务清单
+6. `Docs/History/Tasks/task1_phase3.md` — Phase 3 任务清单（已归档）
 7. `Plugins/AgentBridge/README.md` — 插件定义（首次进入必读）
 8. `Plugins/AgentBridge/AGENTS.md` — 通用 Agent 规则（首次进入必读）
 9. 与当前任务相关的 `Docs/Current/*` 和 `Plugins/AgentBridge/Docs/*`
@@ -156,7 +156,7 @@ Agent 不得：
 当 Agent 检测到以下信号时，视为发生了阶段切换：
 
 - `Docs/Current/00_Index.md` 中的阶段名称变更
-- `task1.md` 内容被完全替换
+- 当前阶段任务清单被归档并创建新清单
 - 被明确告知进入新阶段
 
 阶段切换后，必须重新完整阅读步骤 1–6 的全部文件，不可依赖上一期的缓存记忆。

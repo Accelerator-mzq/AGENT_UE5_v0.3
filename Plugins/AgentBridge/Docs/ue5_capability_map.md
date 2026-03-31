@@ -1,6 +1,6 @@
 # UE5 官方能力分层映射
 
-> 目标引擎版本：UE5.5.4 | 文档版本：v0.3 | 适用范围：AGENT + UE5 可操作层
+> 目标引擎版本：UE5.5.4 | 文档版本：v0.4.0 | 适用范围：AgentBridge 框架 UE5 官方能力映射
 
 ## 1. 文档目的
 
@@ -43,83 +43,98 @@
 
 ---
 
-## 3. 系统整体模块图
+## 3. 系统整体模块图（v0.4.0）
 
 ```text
-┌───────────────────────────────────────┐
-│              Agent 层                  │
-│   Codex / Claude / OpenCode           │
-│   - 理解需求                           │
-│   - 拆分任务                           │
-│   - 选择工具                           │
-│   - 读结果后修正                       │
-└──────────────────┬────────────────────┘
-                   │
-                   v
-┌───────────────────────────────────────────────────────────┐
-│      AGENT + UE5 可操作层（核心位置）                       │
-│      Orchestrator / Tool Router / Guardrails               │
-│   - 工具契约（Tool Contracts）                              │
-│   - 参数校验（禁止模糊字段进入执行层）                       │
-│   - 查询 → 计划 → dry-run → apply → verify                │
-│   - 权限控制 / 审计日志 / 回滚钩子                          │
-│   - 统一响应外壳 {status, summary, data, warnings, errors}  │
-│   - Schema 契约层（JSON Schema 数据格式约束）               │
-└──────────┬────────────────────────────┬───────────────────┘
-           │                            │
-           │                            │
-           v                            v
-┌────────────────────────┐   ┌─────────────────────────────────┐
-│   Code / Build Tools   │   │       UE5 Bridge 层              │
-│   - UBT / 编译         │   │                                   │
-│   - lint / unit tests  │   │  通道 A: Python Editor Scripting  │
-│   - Git / Perforce     │   │    unreal 模块（进程内调用）       │
-│                        │   │    Editor Scripting Utilities      │
-│                        │   │                                   │
-│                        │   │  通道 B: Remote Control API        │
-│                        │   │    HTTP REST / WebSocket（远程）   │
-│                        │   │    generateTransaction 支持        │
-│                        │   │                                   │
-│                        │   │  通道 C: Commandlet / CLI          │
-│                        │   │    无 GUI 批处理                   │
-│                        │   │                                   │
-│                        │   │  通道 D: UAT                       │
-│                        │   │    构建 / 打包 / CI 编排           │
-│                        │   │                                   │
-│                        │   │  通道 E: 自定义 UE Editor Plugin   │
-│                        │   │    C++ 最高可控性（推荐中枢）      │
-└───────────┬────────────┘   └───────────────┬─────────────────┘
-            │                                │
-            │                                v
-            │                ┌─────────────────────────────────┐
-            │                │       Unreal Engine              │
-            │                │   Editor / Assets / Maps         │
-            │                │   Blueprint / C++ / UI           │
-            │                │   Transaction System (Undo/Redo) │
-            │                └───────────────┬─────────────────┘
-            │                                │
-            └──────────────┬─────────────────┘
-                           v
-┌───────────────────────────────────────────────────────────┐
-│          Verification / Rollback 层                        │
-│                                                            │
-│   UE5 原生测试体系：                                        │
-│   - Automation Test Framework（测试基座）                    │
-│   - Automation Spec（BDD 行为式测试）                       │
-│   - Functional Testing（关卡内功能测试）                     │
-│   - Automation Driver（输入模拟，封装在高层测试中）           │
-│   - Gauntlet（会话级 / 端到端 / CI 测试编排）               │
-│                                                            │
-│   观测与审计：                                              │
-│   - Map Check / Editor Logs / Screenshots                  │
-│   - Screenshot Comparison Tool                             │
-│   - Dirty Asset Report                                     │
-│   - Packaging Smoke Test                                   │
-│                                                            │
-│   回滚：                                                    │
-│   - UE5 Transaction System（原生 Undo/Redo）               │
-│   - Git / Perforce 版本回退                                 │
-└───────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                     项目层（工程根目录）                        │
+│                                                               │
+│  ProjectInputs/              ProjectState/                    │
+│  ├── GDD/（设计文档）         ├── Handoffs/（draft / approved）│
+│  ├── Presets/（编译配置）     ├── Reports/（执行报告）         │
+│  └── Baselines/（基线快照）   └── Snapshots/（状态快照）       │
+└──────────────┬───────────────────────┬────────────────────────┘
+               │ 输入                  ▲ 实例输出
+┌──────────────▼───────────────────────┴────────────────────────┐
+│                   插件层（Plugins/AgentBridge/）                │
+│                                                               │
+│  ┌─ Skill Compiler Plane（编译前端）────────────────────────┐ │
+│  │  Design Input Intake → Mode Router → Handoff Builder     │ │
+│  │  Project State Intake    (GF/BF)    └→ Handoff Serializer│ │
+│  │  占位：analysis/（Phase 5）generation/ review/（Phase 4） │ │
+│  └───────────────────────────┬──────────────────────────────┘ │
+│                              │ Reviewed Handoff               │
+│                              │ （draft YAML → 审批 → approved）│
+│                              ▼                                │
+│  ┌─ Execution Orchestrator Plane（编排层）───────────────────┐ │
+│  │  入口 A: orchestrator.py（Spec 驱动 — Phase 1-2 链路）    │ │
+│  │  入口 B: handoff_runner.py（Handoff 驱动 — Phase 3 链路） │ │
+│  │  共用：verifier / report_generator / spec_reader          │ │
+│  │  ──────────────────────────────────────────                │ │
+│  │  工具契约（Tool Contracts） + 参数校验                     │ │
+│  │  查询 → 计划 → dry-run → apply → verify 闭环              │ │
+│  │  权限控制 / 审计日志 / 回滚钩子                            │ │
+│  │  统一响应 {status, summary, data, warnings, errors}        │ │
+│  │  Schema 契约层（JSON Schema 数据格式约束）                 │ │
+│  └───────────────────────────┬──────────────────────────────┘ │
+│                              │                                │
+│         ┌────────────────────┼─────────────────┐              │
+│         │                    │                 │              │
+│  ┌──────▼──────┐  ┌─────────▼──────┐  ┌──────▼──────────┐   │
+│  │ 通道 A:     │  │ 通道 B:        │  │ 通道 C:         │   │
+│  │ Python 进程 │  │ RC API HTTP    │  │ C++ Plugin 直接 │   │
+│  │ import      │  │ PUT :30010     │  │ 进程内调用      │   │
+│  │ unreal      │  │ Agent 远程     │  │ 最高性能        │   │
+│  └──────┬──────┘  └────────┬───────┘  └───────┬─────────┘   │
+│         │                  │                   │              │
+│  ┌──────▼──────────────────▼───────────────────▼──────────┐  │
+│  │          AgentBridge C++ Editor Plugin                  │  │
+│  │  L1 语义工具（Query 7 + Write 4）                       │  │
+│  │  L2 编辑器服务工具（Validate/Build 4）                   │  │
+│  │  L3 UI 工具（3 个 + L3→L1 交叉比对）                    │  │
+│  │  参数校验 + 统一响应 + Transaction 管理                  │  │
+│  │  Commandlet 无头执行 / UAT 子进程封装                   │  │
+│  └──────────────────────────┬─────────────────────────────┘  │
+│                             │                                 │
+│  ┌──────────────────────────▼─────────────────────────────┐  │
+│  │                   UE5 官方 API 层                       │  │
+│  │  L1: EditorLevelLib / EditorAssetLib / RC API / Trans  │  │
+│  │  L2: Automation Test / Spec / Functional / Gauntlet    │  │
+│  │  L3: Automation Driver（IAutomationDriverModule）      │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │          AgentBridgeTests C++ Plugin                    │  │
+│  │  L1 Test（11） + L3.UITool Test（4）                    │  │
+│  │  L2 Spec（5） + L3 Functional Testing                   │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                               │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+┌──────────────────────────────▼────────────────────────────────┐
+│               UE5.5.4 Editor / Commandlet / UAT              │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+┌──────────────────────────────▼────────────────────────────────┐
+│  Verification / Rollback 层                                   │
+│                                                               │
+│  UE5 原生测试体系：                                            │
+│  - Automation Test Framework（测试基座）                       │
+│  - Automation Spec（BDD 行为式测试）                           │
+│  - Functional Testing（关卡内功能测试）                        │
+│  - Automation Driver（输入模拟，封装在高层测试中）              │
+│  - Gauntlet（会话级 / 端到端 / CI 测试编排）                   │
+│                                                               │
+│  观测与审计：                                                  │
+│  - Map Check / Editor Logs / Screenshots                      │
+│  - Screenshot Comparison Tool / Dirty Asset Report            │
+│                                                               │
+│  回滚：                                                       │
+│  - UE5 Transaction System（原生 Undo/Redo）                   │
+│  - Git / Perforce 版本回退                                     │
+└───────────────────────────────────────────────────────────────┘
+
+侧向连接：Code/Build Tools（UBT / 编译 / lint / Git / Perforce）
 ```
 
 ---

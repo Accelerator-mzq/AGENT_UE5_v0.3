@@ -71,13 +71,26 @@ RunUAT RunGauntlet -Test=AgentBridge.AllTests -project=MyGame.uproject
 ### 2.3 与其他模块的关系
 
 ```
-Agent（规划/决策）
-  ↓ 提供结构化 Spec
-Orchestrator（编排）
-  ↓ 调用 Bridge 函数（通过通道 A 或通道 B）
+Design Inputs（GDD / Presets）+ Project State
+  ↓
+Skill Compiler Plane（编译前端）
+  ├── Design Input Intake
+  ├── Mode Router（Greenfield / Brownfield）
+  └── Handoff Builder → Handoff Serializer
+  ↓
+Reviewed Handoff（draft → 审批 → approved YAML）
+  ↓
+Execution Orchestrator Plane（本文档描述的模块）
+  ├── 入口 A: orchestrator.py（Spec 驱动 — Phase 1-2 链路）
+  │     Spec 解析 → 计划生成 → 执行 → 验证 → 报告
+  ├── 入口 B: handoff_runner.py（Handoff 驱动 — Phase 3 链路）
+  │     run_plan_builder.py → Run Plan → 逐步执行 → 报告
+  └── 共用：verifier.py / report_generator.py / spec_reader.py
+  ↓ 调用 Bridge 函数（通过通道 A / B / C）
 Bridge 封装层（参数校验 + 统一响应 + UE5 API 调用）
   ├── 通道 A: Python Editor Scripting（进程内）
-  └── 通道 B: Remote Control API（HTTP 远程）
+  ├── 通道 B: Remote Control API（HTTP 远程）
+  └── 通道 C: C++ Plugin 直接调用（进程内）
   ↓
 UE5.5.4 Editor
 ```

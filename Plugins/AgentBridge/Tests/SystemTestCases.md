@@ -1,6 +1,6 @@
 # AgentBridge 系统测试用例总表
 
-> 来源：task.md（v0.3 编码 Agent 任务清单）中的验收标准与验证步骤
+> 来源：task.md（v0.3 编码 Agent 任务清单）+ task1.md（Phase 3 编码 Agent 任务清单）中的验收标准与验证步骤
 > 最后更新：2026-03-31
 > 维护者：msc
 
@@ -19,8 +19,10 @@
 - [8. Commandlet 无头执行（CMD）](#8-commandlet-无头执行cmd)
 - [9. Python 客户端（PY）](#9-python-客户端py)
 - [10. Orchestrator 编排（ORC）](#10-orchestrator-编排orc)
-- [11. Gauntlet CI/CD（GA）](#11-gauntlet-cicdga)
-- [12. 端到端集成（E2E）](#12-端到端集成e2e)
+- [11. Compiler Plane（CP）](#11-compiler-planecp)
+- [12. Skills & Specs（SS）](#12-skills--specsss)
+- [13. Gauntlet CI/CD（GA）](#13-gauntlet-cicdga)
+- [14. 端到端集成（E2E）](#14-端到端集成e2e)
 - [附录 A：UE5 Automation Test ID 速查表](#附录-aue5-automation-test-id-速查表)
 - [附录 B：统计摘要](#附录-b统计摘要)
 - [附录 C：自动化工具链](#附录-c自动化工具链)
@@ -40,16 +42,18 @@
 | CMD | Commandlet | UE5 命令行（无头） | `UnrealEditor-Cmd.exe -run=AgentBridge` + `Scripts/validation/start_ue_editor_cmd_project.ps1` |
 | PY | Python 客户端 | Python | pytest / `ast.parse` / Mock 模式调用 |
 | ORC | Orchestrator | Python + UE5 | pytest / `orchestrator.py --channel mock` |
+| CP | Compiler Plane | Python | pytest / `compiler_main.py` |
+| SS | Skills & Specs | Python | pytest / `yaml.safe_load` |
 | GA | Gauntlet CI/CD | UE5 + UAT | `RunUAT.bat RunUnreal -test=SmokeTests/AllTests` |
 | E2E | 端到端集成 | 全栈 | 多步流水线（Schema→Cmd→Gauntlet→三通道脚本） |
 
-> 全部 134 条用例均已实现自动化。证据目录分层为：`ProjectState/Reports/`（当期执行）+ `Docs/History/reports/AgentBridgeEvidence/`（历史归档）。
+> 全部 164 条用例均已实现自动化。证据目录分层为：`ProjectState/Reports/`（当期执行）+ `Docs/History/reports/AgentBridgeEvidence/`（历史归档）。
 
 ---
 
 ## 2. Schema 验证（SV）
 
-> 来源：TASK 02, TASK 18
+> 来源：TASK 02, TASK 18, task1.md TASK 03
 
 | 编号 | 用例名称 | 前置条件 | 测试步骤 | 预期结果 | 自动化命令 |
 |------|---------|---------|---------|---------|-----------|
@@ -58,6 +62,11 @@
 | SV-03 | Schema 文件数量一致性 | TASK 01 完成 | 统计 Schemas/ 下文件数 | 初始 24 个，扩展后 28 个 | `pytest Tests/scripts/test_schema_validation.py::TestSchemaValidation::test_sv03` |
 | SV-04 | example→Schema 映射完整 | 文件就位 | 检查每个 example 有对应 Schema | 全部 example 有映射 | `pytest Tests/scripts/test_schema_validation.py::TestSchemaValidation::test_sv04` |
 | SV-05 | 新增 example 不破坏旧 example | TASK 18 扩展后 | 运行 validate_examples.py | 原 8 个仍通过，新增也通过 | `python Scripts/validation/validate_examples.py --strict` |
+| SV-06 | reviewed_handoff.schema.json 格式正确 | task1 TASK 03 | `json.load` + 检查 required 字段 | required 含 5 个必填字段 | `python -c "import json; s=json.load(open('Schemas/reviewed_handoff.schema.json')); assert len(s['required'])==5"` |
+| SV-07 | run_plan.schema.json 格式正确 | task1 TASK 03 | `json.load` + 检查 required 字段 | required 含 5 个必填字段 | `python -c "import json; s=json.load(open('Schemas/run_plan.schema.json')); assert len(s['required'])==5"` |
+| SV-08 | reviewed_handoff example 通过 Schema 校验 | SV-06 | `jsonschema.validate` | 无异常 | `python -c "import json,jsonschema; jsonschema.validate(json.load(open('Schemas/examples/reviewed_handoff_greenfield.example.json')), json.load(open('Schemas/reviewed_handoff.schema.json')))"` |
+| SV-09 | run_plan example 通过 Schema 校验 | SV-07 | `jsonschema.validate` | 无异常 | `python -c "import json,jsonschema; jsonschema.validate(json.load(open('Schemas/examples/run_plan_greenfield.example.json')), json.load(open('Schemas/run_plan.schema.json')))"` |
+| SV-10 | 新增 Schema 不影响现有 validate_examples.py | SV-08, SV-09 | `validate_examples.py --strict` | 原有 10 个 + 新增 2 个全部通过 | `python Scripts/validation/validate_examples.py --strict` |
 
 ---
 
@@ -329,9 +338,63 @@
 
 > 证据：`Docs/History/reports/AgentBridgeEvidence/task14_evidence_2026-03-28/`
 
+### Run Plan Builder (task1.md TASK 06)
+
+| 编号 | 用例名称 | 测试方式 | 预期结果 |
+|------|---------|---------|---------|
+| ORC-32 | run_plan_builder 可导入 | `from orchestrator.run_plan_builder import build_run_plan_from_handoff` | 无 ImportError |
+| ORC-33 | handoff_runner 可导入 | `from orchestrator.handoff_runner import run_from_handoff` | 无 ImportError |
+| ORC-34 | build_run_plan_from_handoff 生成 Run Plan | 传入 1 actor Handoff | workflow_sequence 含 1 个步骤 |
+| ORC-35 | Run Plan source_handoff_id 匹配 | 检查输出 | source_handoff_id == 输入 handoff_id |
+| ORC-36 | Run Plan workflow_type 正确 | 检查 workflow_sequence[0] | workflow_type == "spawn_actor" |
+| ORC-37 | handoff_runner simulated 模式 E2E | `run_from_handoff(path, bridge_mode="simulated")` | execution_status=="succeeded", 3/3 步骤成功 |
+
+> 证据：Greenfield simulated 模式执行报告 `ProjectState/Reports/`
+
 ---
 
-## 11. Gauntlet CI/CD（GA）
+## 11. Compiler Plane（CP）
+
+> 来源：task1.md TASK 04
+> 自动化方式：pytest / `python compiler_main.py`
+> 环境要求：Python 3.x + pyyaml + jsonschema
+
+| 编号 | 用例名称 | 测试方式 | 预期结果 |
+|------|---------|---------|---------|
+| CP-01 | compiler.intake 可导入 | `from compiler.intake import read_gdd, read_gdd_from_directory` | 无 ImportError |
+| CP-02 | compiler.routing 可导入 | `from compiler.routing import determine_mode, load_mode_config` | 无 ImportError |
+| CP-03 | compiler.handoff 可导入 | `from compiler.handoff import build_handoff, serialize_handoff` | 无 ImportError |
+| CP-04 | project_state_intake 可导入 | `from compiler.intake import get_project_state_snapshot` | 无 ImportError |
+| CP-05 | design_input_intake 从 GDD 提取 game_type | `read_gdd(gdd_path)` | game_type == "boardgame" |
+| CP-06 | mode_router 空项目 + auto → greenfield | `determine_mode(auto_config, empty_state)` | "greenfield_bootstrap" |
+| CP-07 | mode_router 非空项目 + auto → brownfield | `determine_mode(auto_config, nonempty_state)` | "brownfield_expansion" |
+| CP-08 | mode_router force_mode 覆盖 | `determine_mode(force_config, nonempty_state)` | "greenfield_bootstrap"（force 覆盖 auto） |
+| CP-09 | handoff_builder 生成 3 Actor Handoff | `build_handoff(design_input, "greenfield_bootstrap")` | actors 数组长度 == 3，首个为 Board |
+| CP-10 | 生成 Handoff 通过 Schema 校验 | `jsonschema.validate(handoff, schema)` | 无 ValidationError |
+| CP-11 | compiler_main.py 端到端 | `python compiler_main.py` | 输出 Handoff YAML 到 ProjectState/Handoffs/draft/ |
+
+> 证据：`ProjectState/Handoffs/draft/` 下生成的 Handoff YAML 文件
+
+---
+
+## 12. Skills & Specs（SS）
+
+> 来源：task1.md TASK 05
+> 自动化方式：pytest / `yaml.safe_load`
+> 环境要求：Python 3.x + pyyaml
+
+| 编号 | 用例名称 | 测试方式 | 预期结果 |
+|------|---------|---------|---------|
+| SS-01 | Skills 目录结构完整 | 检查 base_domains/ + genre_packs/ 存在 | 目录齐全 |
+| SS-02 | pack_manifest.yaml 可解析 | `yaml.safe_load(open(manifest_path))` | 无异常 |
+| SS-03 | pack_manifest.yaml pack_id 正确 | 检查 pack_id 字段 | "genre-boardgame" |
+| SS-04 | Specs 扩展目录完整 | 检查 StaticBase/ + Contracts/ 存在 | 目录齐全，现有 templates/ 未变 |
+
+> 证据：目录结构 + YAML 解析输出
+
+---
+
+## 13. Gauntlet CI/CD（GA）
 
 > 来源：TASK 16
 > 自动化基础设施：`RunUAT.bat RunUnreal` + `Gauntlet/AgentBridge.TestConfig.cs` + `AgentBridgeGauntletController`(C++)
@@ -349,7 +412,7 @@
 
 ---
 
-## 12. 端到端集成（E2E）
+## 14. 端到端集成（E2E）
 
 > 来源：TASK 15, TASK 19
 > 自动化方式：多步流水线，每步独立可执行
@@ -378,6 +441,19 @@
 | E2E-11 | 三通道一致性 | Step 7/7 | Python 脚本：Channel A(`import unreal`) + B(`CPP_PLUGIN`) + C(`REMOTE_CONTROL`) 查询同一 Actor | transform 一致, `consistent: true` |
 
 > 证据：`Docs/History/reports/AgentBridgeEvidence/task19_evidence_2026-03-27/` 含 step1~step7 全部日志 + JSON
+
+### Greenfield 管线验证 (task1.md TASK 07, 09, 10)
+
+| 编号 | 用例名称 | 验证步骤 | 自动化命令 | 预期结果 |
+|------|---------|---------|-----------|---------|
+| E2E-12 | Greenfield simulated 端到端 | GDD→Compiler→Handoff→RunPlan→执行→Report | `python run_greenfield_demo.py` | 输出 "执行状态: succeeded" |
+| E2E-13 | Handoff draft 文件生成 | 检查 ProjectState/Handoffs/draft/ | `ls ProjectState/Handoffs/draft/*.yaml` | 有 handoff YAML 文件 |
+| E2E-14 | Handoff approved 文件生成 | 检查 ProjectState/Handoffs/approved/ | `ls ProjectState/Handoffs/approved/*.yaml` | 有 handoff YAML 文件 |
+| E2E-15 | Execution report 正确 | 检查 ProjectState/Reports/ | `python -c "import json,glob; r=json.load(open(glob.glob('ProjectState/Reports/*.json')[-1])); assert r['summary']['succeeded']==3"` | 3/3 步骤成功 |
+| E2E-16 | Greenfield bridge_python 端到端 [UE5] | `python run_greenfield_demo.py bridge_python` | 需 UE5 Editor 运行 | 3 个 Actor 在 UE5 中生成 |
+| E2E-17 | UE5 Actor 位置验证 [UE5] | Bridge 查询 Board/PieceX_1/PieceO_1 | `query_tools.list_level_actors` + `get_actor_state` | Board@(0,0,0) scale(3,3,0.1), PieceX_1@(-100,-100,50), PieceO_1@(100,100,50) |
+
+> 证据：`ProjectState/Reports/` 下执行报告 + `ProjectState/Handoffs/` 下 Handoff 文件
 
 ---
 
@@ -415,7 +491,7 @@
 
 | 分类 | 用例数 | 自动化覆盖 |
 |------|-------|-----------|
-| SV Schema 验证 | 5 | 🟢 全部 |
+| SV Schema 验证 | 10 | 🟢 全部 |
 | BL 编译与加载 | 6 | 🟢 全部 |
 | Q L1 查询 | 12 | 🟢 全部 |
 | W L1 写接口 | 20 | 🟢 全部 |
@@ -423,10 +499,12 @@
 | UI L3 工具 | 13 | 🟢 全部 |
 | CMD Commandlet | 8 | 🟢 全部 |
 | PY Python 客户端 | 10 | 🟢 全部 |
-| ORC Orchestrator | 31 | 🟢 全部 |
+| ORC Orchestrator | 37 | 🟢 全部 |
+| CP Compiler Plane | 11 | 🟢 全部 |
+| SS Skills & Specs | 4 | 🟢 全部 |
 | GA Gauntlet | 6 | 🟢 全部 |
-| E2E 端到端 | 11 | 🟢 全部 |
-| **合计** | **134** | **🟢 134/134 (100%)** |
+| E2E 端到端 | 17 | 🟢 全部 |
+| **合计** | **166** | **🟢 166/166 (100%)** |
 
 ---
 
@@ -445,6 +523,8 @@
 | `python validate_examples.py --strict` | Schema 校验（jsonschema） | SV, E2E-05 |
 | `pytest` | Python 单元/集成测试 | SV, PY, ORC |
 | `python orchestrator.py` | Orchestrator 主编排（Mock / Channel C） | ORC-24~31, E2E-08 |
-| `bridge_core.py` + `query_tools.py` | Python Bridge 客户端（三通道） | PY, ORC, E2E-11 |
+| `python compiler_main.py` | Compiler Plane 端到端（GDD→Handoff） | CP-11 |
+| `python run_greenfield_demo.py` | Greenfield 管线端到端（simulated / bridge_python / bridge_rc_api） | E2E-12~17 |
+| `bridge_core.py` + `query_tools.py` | Python Bridge 客户端（三通道） | PY, ORC, E2E-11, E2E-17 |
 | Python `import unreal` 脚本 | Channel A（Python Editor Scripting API） | E2E-11 |
 | HTTP `curl localhost:30010` | RC API 探测 / Channel B | BL-06, E2E-11 |
