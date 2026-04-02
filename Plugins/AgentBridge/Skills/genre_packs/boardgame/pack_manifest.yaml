@@ -36,6 +36,8 @@ dependencies:
     - "product_scope"
     - "world_level"
     - "presentation_asset"
+    - "qa_validation"
+    - "planning_governance"
   static_base:
     - "WorldBuildStaticSpec"
     - "ValidationStaticSpec"

@@ -5,6 +5,7 @@ Handoff Builder
 
 import json
 import os
+import sys
 import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -16,6 +17,12 @@ from compiler.analysis import (
 )
 from compiler.generation import generate_dynamic_spec_tree, load_skill_pack_manifest
 from compiler.review import review_dynamic_spec_tree
+
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from Plugins.AgentBridge.Skills.base_domains import load_required_base_domain_modules
 
 
 def build_handoff(
@@ -47,6 +54,12 @@ def build_handoff(
     project_state = project_state or {}
     game_type = design_input.get("game_type", "unknown")
     pack_manifest = load_skill_pack_manifest(game_type, pack_manifest_path)
+    base_domain_modules = load_required_base_domain_modules(pack_manifest)
+    active_base_domains = [
+        entry["domain_id"]
+        for entry in base_domain_modules.get("loaded_domains", [])
+        if entry.get("exists")
+    ]
     activated_skill_packs = [pack_manifest.get("pack_id", game_type)]
     routing_context = {
         "mode": mode,
@@ -117,14 +130,17 @@ def build_handoff(
         },
         "capability_gaps": review_result.get("capability_gaps", {}),
         "governance_context": {
-            "phase": "Phase 6",
+            "phase": "Phase 7",
             "static_base_registry_ref": static_spec_context.get("registry", {}).get("registry_path", ""),
             "required_static_specs": static_spec_context.get("required_spec_ids", []),
             "contract_registry_ref": contract_registry.get("registry_path", ""),
+            "base_domain_refs": active_base_domains,
+            "base_domain_registry_ref": base_domain_modules.get("registry", {}).get("base_domain_root", ""),
+            "governance_lane": "phase7_minimal",
         },
         "metadata": {
             "generated_at": datetime.now().isoformat(),
-            "generator": "AgentBridge.Compiler.v0.6",
+            "generator": "AgentBridge.Compiler.v0.7",
             "source_gdd": design_input.get("source_file"),
             "source_files": design_input.get("source_files", []),
             "skill_pack_manifest": pack_manifest.get("manifest_path", ""),
@@ -132,6 +148,7 @@ def build_handoff(
             "baseline_snapshot_ref": baseline_snapshot_path,
             "projection_profile": projection_profile,
             "target_stage": target_stage,
+            "base_domain_refs": active_base_domains,
         },
     }
 

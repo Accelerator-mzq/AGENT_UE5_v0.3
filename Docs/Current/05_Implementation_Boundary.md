@@ -1,29 +1,27 @@
-# 当前实施边界
+# 实施边界
 
-> 文档版本：L1-Phase7Prep-v1
+> 阶段：Phase 7 正式开发期
 
-## P1 允许做到哪里
+## 允许改动
 
-### 文档与治理
+- `Docs/Current/*`
+- 根目录 [task.md](/D:/UnrealProjects/Mvpv4TestCodex/task.md)
+- `Plugins/AgentBridge/Scripts/compiler/`
+- `Plugins/AgentBridge/Scripts/orchestrator/`
+- `Plugins/AgentBridge/Skills/base_domains/`
+- `Plugins/AgentBridge/Skills/genre_packs/jrpg/`
+- `Scripts/run_jrpg_turn_based_demo.py`
+- 与 Phase 7 新功能直接相关的测试与文档
 
-- 允许继续整理阶段归档、索引、证据与测试总表
-- 允许为下一阶段立项补充范围、成功标准与测试编号策略
+## 本期保持不动
 
-### 基线验证
+- [SystemTestCases.md](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/SystemTestCases.md) 当前 `206` 条总表
+- [run_system_tests.py](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/run_system_tests.py) 当前 `206` 条对齐口径
+- 稳定的 `Bridge` 三通道主体
+- 不必要的 C++ 大改动
 
-- 允许继续复跑 `Phase 4~6` 的已有验证链路
-- 允许修复已经被证据确认的轻量回归问题
-- 允许补充不改变架构边界的验证脚本与报告
+## 设计原则
 
-## P2 只允许做到哪里
-
-- 允许为下一阶段做最小范围的原型论证，但不得默认合并为正式功能
-- 允许继续观察真实 UE5 smoke 稳定性，并把结果收敛为长期回归建议
-
-## 不允许做的
-
-- 在下一阶段任务未批准前，启动新的大规模功能开发
-- 重写现有 C++ Subsystem
-- 重构现有 Bridge 三通道主链
-- 重构现有 Orchestrator 核心
-- 同时推进多个新 Genre Pack
+- 先做最小闭环，再做泛化
+- 治理能力优先做“可表达、可验证、可审计”
+- 第二个类型包只做一个：`JRPG Turn-Based`

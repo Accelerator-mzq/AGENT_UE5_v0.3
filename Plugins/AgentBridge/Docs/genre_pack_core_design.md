@@ -1,10 +1,10 @@
 # Genre Pack Core 设计
 
-> 文档版本：v0.5.0（Phase 6 口径）
+> 文档版本：v0.7.0（Phase 7 口径）
 
 ## 1. 文档目的
 
-本文档说明 `Skills/genre_packs/_core/` 在 Phase 6 的最小职责边界。
+本文档说明 `Skills/genre_packs/_core/` 在 Phase 7 的职责边界。
 
 目标不是建立一个过重的插件系统，而是让 Genre Pack 从“只有 manifest 的目录”升级为 Compiler 能真正消费的编译驱动力。
 
@@ -53,7 +53,7 @@ Skills/genre_packs/_core/
 - 建立 `pack_id -> pack_bundle` 映射
 - 提供按 `game_type / feature_tags` 的激活选择
 
-当前 Phase 6 只要求正确发现并激活 `genre-boardgame`。
+当前 Phase 7 要求正确发现并激活 `genre-boardgame` 与 `genre-jrpg`。
 
 ### 3.3 `router_base.py`
 
@@ -93,6 +93,6 @@ design_input / project_state
 ## 5. 当前边界
 
 - `_core` 只负责 pack 发现、标准化与装载，不负责执行运行时逻辑
-- Base Skill Domains 仍未在 Phase 6 完整实装
-- 当前只有 `boardgame` 一个 pack
+- Base Skill Domains 已进入最小真实化阶段
+- 当前已有 `boardgame` 与 `jrpg` 两个 pack
 - 当前不做热加载、远程安装或复杂版本协商

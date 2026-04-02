@@ -9,7 +9,7 @@ import copy
 import hashlib
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, Optional, Tuple
 
 import yaml
@@ -19,6 +19,12 @@ def get_default_snapshot_dir(project_root: Optional[str] = None) -> str:
     """返回默认的 baseline snapshot 输出目录。"""
     resolved_project_root = project_root or _get_project_root()
     return os.path.join(resolved_project_root, "ProjectState", "Snapshots")
+
+
+def get_dated_snapshot_dir(project_root: Optional[str] = None, target_date: Optional[str] = None) -> str:
+    """返回按日期分层的 snapshot 目录。"""
+    resolved_date = target_date or date.today().isoformat()
+    return os.path.join(get_default_snapshot_dir(project_root), resolved_date)
 
 
 def build_baseline_snapshot(
@@ -99,7 +105,10 @@ def save_baseline_snapshot(
     output_dir: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """保存 baseline snapshot 到 ProjectState/Snapshots/。"""
-    resolved_output_dir = output_dir or get_default_snapshot_dir()
+    default_snapshot_root = get_default_snapshot_dir()
+    resolved_output_dir = output_dir or default_snapshot_root
+    if os.path.abspath(resolved_output_dir) == os.path.abspath(default_snapshot_root):
+        resolved_output_dir = get_dated_snapshot_dir()
     os.makedirs(resolved_output_dir, exist_ok=True)
 
     filename = f"{baseline_snapshot['baseline_id']}.yaml"
@@ -122,6 +131,34 @@ def build_and_save_baseline_snapshot(
     """构建并保存 baseline snapshot。"""
     snapshot = build_baseline_snapshot(project_state, design_input=design_input)
     return save_baseline_snapshot(snapshot, output_dir=output_dir)
+
+
+def write_snapshot_manifest(
+    baseline_ref: str,
+    digest: str,
+    source_report: str,
+    output_dir: Optional[str] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
+) -> str:
+    """写入 Phase 7 最小 snapshot manifest。"""
+    resolved_output_dir = output_dir or get_dated_snapshot_dir()
+    os.makedirs(resolved_output_dir, exist_ok=True)
+
+    manifest_name = os.path.splitext(os.path.basename(baseline_ref or source_report or "snapshot"))[0]
+    manifest_path = os.path.join(resolved_output_dir, f"snapshot_manifest_{manifest_name}.json")
+    payload = {
+        "baseline_ref": baseline_ref,
+        "digest": digest,
+        "source_report": source_report,
+        "created_at": datetime.now().isoformat(),
+    }
+    if extra_fields:
+        payload.update(extra_fields)
+
+    with open(manifest_path, "w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=2, ensure_ascii=False)
+
+    return manifest_path
 
 
 def load_baseline_snapshot(snapshot_path: str) -> Dict[str, Any]:

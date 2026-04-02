@@ -6,9 +6,11 @@ Compiler Analysis Module
 from .baseline_builder import (
     build_and_save_baseline_snapshot,
     build_baseline_snapshot,
+    get_dated_snapshot_dir,
     get_default_snapshot_dir,
     load_baseline_snapshot,
     save_baseline_snapshot,
+    write_snapshot_manifest,
 )
 from .contract_registry_loader import (
     get_default_contract_root,
@@ -21,10 +23,12 @@ __all__ = [
     "analyze_delta_scope",
     "build_and_save_baseline_snapshot",
     "build_baseline_snapshot",
+    "get_dated_snapshot_dir",
     "get_default_contract_root",
     "get_default_snapshot_dir",
     "load_baseline_snapshot",
     "load_contract_bundle",
     "load_contract_registry",
     "save_baseline_snapshot",
+    "write_snapshot_manifest",
 ]

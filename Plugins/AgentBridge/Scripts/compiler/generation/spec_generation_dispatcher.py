@@ -21,7 +21,8 @@ from Plugins.AgentBridge.Skills.genre_packs._core import (
 
 from .boardgame_scene_generator import generate_boardgame_dynamic_spec_tree
 from .brownfield_delta_generator import generate_brownfield_delta_tree
-from .static_base_loader import get_project_root, load_phase4_static_specs
+from .jrpg_scene_generator import generate_jrpg_dynamic_spec_tree
+from .static_base_loader import get_project_root, load_phase4_static_specs, load_static_spec_bundle
 
 
 def load_skill_pack_manifest(
@@ -63,6 +64,7 @@ def generate_dynamic_spec_tree(
 
     required_spec_ids = _determine_required_spec_ids(game_type)
     static_spec_context["required_spec_ids"] = required_spec_ids
+    _ensure_required_static_specs_loaded(static_spec_context)
 
     if game_type == "boardgame":
         full_target_tree = generate_boardgame_dynamic_spec_tree(
@@ -73,6 +75,19 @@ def generate_dynamic_spec_tree(
             pack_modules=pack_modules,
             projection_profile=projection_profile,
         )
+    elif game_type == "jrpg":
+        full_target_tree = generate_jrpg_dynamic_spec_tree(
+            design_input=design_input,
+            routing_context=routing_context,
+            static_spec_context=static_spec_context,
+            pack_manifest=pack_manifest,
+            pack_modules=pack_modules,
+            projection_profile=projection_profile,
+        )
+    else:
+        full_target_tree = None
+
+    if full_target_tree is not None:
         analysis_context = {}
         delta_policy = full_target_tree.get("generation_trace", {}).get("delta_policy", {})
 
@@ -113,7 +128,7 @@ def generate_dynamic_spec_tree(
         dynamic_spec_tree = {
             "scene_spec": {"actors": []},
             "generation_trace": {
-                "generator": "AgentBridge.Compiler.Phase6.SpecGenerationDispatcher",
+                "generator": "AgentBridge.Compiler.Phase7.SpecGenerationDispatcher",
                 "projection_profile": projection_profile,
                 "skill_pack_id": pack_manifest.get("pack_id", "unknown"),
             },
@@ -145,7 +160,37 @@ def _determine_required_spec_ids(game_type: str) -> list:
             "BoardgameStaticSpec",
             "BoardgameValidationStaticSpec",
         ]
+    if game_type == "jrpg":
+        return [
+            "WorldBuildStaticSpec",
+            "ValidationStaticSpec",
+            "GameplayFrameworkStaticSpec",
+            "UIModelStaticSpec",
+        ]
     return []
+
+
+def _ensure_required_static_specs_loaded(static_spec_context: Dict[str, Any]) -> None:
+    """按需补载当前类型真正依赖的静态基座，避免只受限于早期 phase4 预加载集合。"""
+    registry = static_spec_context.get("registry", {})
+    static_base_root = static_spec_context.get("static_base_root")
+    loaded_specs = static_spec_context.setdefault("loaded_specs", {})
+    missing_specs = static_spec_context.setdefault("missing_specs", [])
+
+    for spec_id in static_spec_context.get("required_spec_ids", []):
+        if spec_id in loaded_specs:
+            continue
+        try:
+            loaded_specs[spec_id] = load_static_spec_bundle(
+                spec_id=spec_id,
+                registry=registry,
+                static_base_root=static_base_root,
+            )
+            if spec_id in missing_specs:
+                missing_specs.remove(spec_id)
+        except FileNotFoundError:
+            if spec_id not in missing_specs:
+                missing_specs.append(spec_id)
 
 
 def _get_default_pack_manifest_path(game_type: str) -> str:

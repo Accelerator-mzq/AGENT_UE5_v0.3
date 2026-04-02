@@ -20,7 +20,7 @@ AgentBridge 不只是工具接口插件，而是包含编译前端（Skill Compi
 1. `AGENTS.md` — 项目级 Agent 规则
 2. `Docs/Current/00_Index.md` — 当前阶段索引
 3. `Docs/Current/05_Implementation_Boundary.md` — 实施边界
-4. `Docs/History/Tasks/task2_phase4.md` — Phase 4 任务清单（已归档）
+4. `Docs/History/Tasks/task4_phase6.md` — Phase 6 任务清单（已归档）
 5. `Plugins/AgentBridge/README.md` — 插件说明
 6. `Plugins/AgentBridge/AGENTS.md` — 通用 Agent 规则
 
@@ -97,7 +97,7 @@ AgentBridge 不只是工具接口插件，而是包含编译前端（Skill Compi
 # Schema 校验（验证现有 MVP 不破坏）
 python Plugins/AgentBridge/Scripts/validation/validate_examples.py --strict
 
-# 系统测试：一键执行全部 9 个 Stage（134 条用例）
+# 系统测试：一键执行全部 9 个 Stage（206 条用例）
 python Plugins/AgentBridge/Tests/run_system_tests.py
 
 # 系统测试：交互模式（选择 Stage）
@@ -127,6 +127,6 @@ python compiler_main.py
 
 ## 当前阶段
 
-Phase 5 — Brownfield Baseline Understanding + Contracts（进行中）
-上一阶段：Phase 4 — Static Spec Base + 自动 Dynamic Spec 生成（已归档）
-详见 `Docs/Current/00_Index.md` 与 `Docs/History/Tasks/task2_phase4.md`
+Phase 7 — 治理闭环 + JRPG 第二类型包（进行中）
+上一阶段：Phase 6 — 完整 Spec Tree + 可玩 Runtime（已归档）
+详见 `Docs/Current/00_Index.md`、`Docs/History/Tasks/task4_phase6.md` 与 `Docs/History/Tasks/task5_phase7_preparation.md`

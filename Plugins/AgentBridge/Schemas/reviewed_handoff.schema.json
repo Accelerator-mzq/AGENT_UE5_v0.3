@@ -133,7 +133,16 @@
     },
     "governance_context": {
       "type": "object",
-      "description": "治理输入种子"
+      "description": "治理输入种子",
+      "properties": {
+        "phase": {"type": "string"},
+        "static_base_registry_ref": {"type": "string"},
+        "required_static_specs": {"type": "array", "items": {"type": "string"}},
+        "contract_registry_ref": {"type": "string"},
+        "base_domain_refs": {"type": "array", "items": {"type": "string"}},
+        "base_domain_registry_ref": {"type": "string"},
+        "governance_lane": {"type": "string"}
+      }
     },
     "metadata": {
       "type": "object",

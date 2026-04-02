@@ -6,6 +6,9 @@ Run Plan Builder
 import uuid
 from typing import Dict, Any, List
 
+from .recovery_planner import build_recovery_plan
+from .validation_inserter import insert_validation_checkpoints
+
 
 def build_run_plan_from_handoff(handoff: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -19,8 +22,9 @@ def build_run_plan_from_handoff(handoff: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 生成 run_plan_id
     handoff_id = handoff.get("handoff_id", "unknown")
-    project_name = handoff_id.split('.')[1] if '.' in handoff_id else "unknown"
-    run_plan_id = f"runplan.{project_name}.{uuid.uuid4().hex[:8]}"
+    project_name = handoff.get("project_context", {}).get("project_name", "unknown").lower()
+    mode_token = _normalize_mode_token(handoff.get("handoff_mode", "prototype"))
+    run_plan_id = f"runplan.{project_name}.{mode_token}.{uuid.uuid4().hex[:8]}"
 
     # 提取 dynamic_spec_tree
     dynamic_spec_tree = handoff.get("dynamic_spec_tree", {})
@@ -31,7 +35,13 @@ def build_run_plan_from_handoff(handoff: Dict[str, Any]) -> Dict[str, Any]:
     workflow_sequence = build_workflow_sequence(actors, handoff.get("handoff_mode"))
 
     # 生成 validation_checkpoints
-    validation_checkpoints = build_validation_checkpoints(workflow_sequence)
+    validation_checkpoints = insert_validation_checkpoints(workflow_sequence, handoff)
+    recovery_bundle = build_recovery_plan(handoff, workflow_sequence)
+    planning_blockers = list(recovery_bundle.get("blockers", []))
+    if workflow_sequence and not validation_checkpoints:
+        planning_blockers.append("缺少 validation_checkpoints，无法进入治理闭环")
+    if not recovery_bundle.get("policy_ref"):
+        planning_blockers.append("缺少 recovery_policy_ref，无法进入执行阶段")
 
     # 组装 Run Plan
     run_plan = {
@@ -39,20 +49,23 @@ def build_run_plan_from_handoff(handoff: Dict[str, Any]) -> Dict[str, Any]:
         "run_plan_id": run_plan_id,
         "source_handoff_id": handoff.get("handoff_id"),
         "mode": handoff.get("handoff_mode"),
-        "status": "planned",
+        "status": "planned" if not planning_blockers else "failed",
         "context": {
             "project_name": handoff.get("project_context", {}).get("project_name"),
-            "execution_mode": handoff.get("handoff_mode")
+            "execution_mode": handoff.get("handoff_mode"),
+            "planning_blockers": planning_blockers,
         },
         "workflow_sequence": workflow_sequence,
         "validation_checkpoints": validation_checkpoints,
-        "recovery_policies": {},
+        "recovery_policy_ref": recovery_bundle.get("policy_ref", ""),
+        "recovery_policies": recovery_bundle.get("policies", {}),
         "reporting": {
             "output_path": "ProjectState/Reports/"
         },
         "metadata": {
             "generated_from_handoff": handoff.get("handoff_id"),
-            "generator": "AgentBridge.Orchestrator.v0.1"
+            "generator": "AgentBridge.Orchestrator.v0.7",
+            "base_domain_refs": handoff.get("governance_context", {}).get("base_domain_refs", []),
         }
     }
 
@@ -97,29 +110,13 @@ def build_workflow_sequence(actors: List[Dict[str, Any]], mode: str) -> List[Dic
     return workflow_sequence
 
 
-def build_validation_checkpoints(workflow_sequence: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    生成验证检查点
-
-    Args:
-        workflow_sequence: Workflow 序列
-
-    Returns:
-        验证检查点列表
-    """
-    if not workflow_sequence:
-        return []
-
-    # 最小实现：在最后一个步骤后添加验证
-    last_step = workflow_sequence[-1]
-
-    return [
-        {
-            "checkpoint_id": "validate_all_actors_spawned",
-            "after_step": last_step.get("step_id"),
-            "validation_type": "actor_count_check"
-        }
-    ]
+def _normalize_mode_token(mode: str) -> str:
+    """把执行模式压缩成 run_plan_id 可读片段。"""
+    if mode == "brownfield_expansion":
+        return "brownfield"
+    if mode == "greenfield_bootstrap":
+        return "greenfield"
+    return "prototype"
 
 
 if __name__ == "__main__":

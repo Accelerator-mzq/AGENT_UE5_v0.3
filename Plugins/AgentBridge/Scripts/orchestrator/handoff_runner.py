@@ -30,6 +30,12 @@ except ModuleNotFoundError:
         sys.path.insert(0, str(scripts_root))
     from bridge.project_config import get_dated_project_reports_dir, get_project_reports_dir
 
+project_root = Path(__file__).resolve().parents[4]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from Plugins.AgentBridge.Skills.base_domains import load_base_domain_modules
+from compiler.analysis import write_snapshot_manifest
 from .run_plan_builder import build_run_plan_from_handoff
 
 _DEFAULT_LEVEL_PATH = "/Game/Maps/TestMap"
@@ -69,7 +75,14 @@ def run_from_handoff(
 
     # 5. 保存报告（如果指定了输出目录）
     if report_output_dir:
-        save_execution_report(report, report_output_dir)
+        report_path = save_execution_report(report, report_output_dir)
+        snapshot_ref = _write_execution_snapshot_manifest(handoff, report, report_path)
+        report["snapshot_ref"] = snapshot_ref
+        report["promotion_status"] = _build_minimal_promotion_status(handoff, result, snapshot_ref)
+        _rewrite_execution_report(report_path, report)
+        result["report_path"] = report_path
+
+    result["execution_report"] = report
 
     return result
 
@@ -414,6 +427,14 @@ def build_execution_report(
         "handoff_mode": handoff.get("handoff_mode"),
         "execution_status": result.get("status"),
         "step_results": result.get("step_results", []),
+        "regression_summary": _build_regression_summary(handoff, result),
+        "snapshot_ref": "",
+        "promotion_status": {
+            "current_state": "reviewed",
+            "snapshot_ref": "",
+            "transitions": [],
+            "audit_note": "等待 snapshot 与 promotion 回填",
+        },
         "summary": {
             "total_steps": len(result.get("step_results", [])),
             "succeeded": sum(1 for s in result.get("step_results", []) if s.get("result", {}).get("status") == "success"),
@@ -422,7 +443,7 @@ def build_execution_report(
         },
         "metadata": {
             "generated_at": datetime.now().isoformat(),
-            "generator": "AgentBridge.Orchestrator.v0.1"
+            "generator": "AgentBridge.Orchestrator.v0.7"
         }
     }
 
@@ -458,6 +479,74 @@ def save_execution_report(report: Dict[str, Any], output_dir: str) -> str:
 
     print(f"  报告已保存: {output_path}")
     return output_path
+
+
+def _build_regression_summary(handoff: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    """优先通过治理域生成回归摘要。"""
+    base_domain_refs = handoff.get("governance_context", {}).get("base_domain_refs", [])
+    base_domains = load_base_domain_modules(base_domain_refs)
+    qa_entry = base_domains.get("domain_map", {}).get("qa_validation", {})
+    qa_module = qa_entry.get("module")
+
+    if qa_module is not None and hasattr(qa_module, "build_regression_summary"):
+        return qa_module.build_regression_summary(handoff, result)
+
+    return {
+        "status": "not_available",
+        "baseline_ref": handoff.get("baseline_context", {}).get("snapshot_ref", ""),
+        "delta_intent": handoff.get("delta_context", {}).get("delta_intent", ""),
+        "added_actor_names": [],
+        "required_regression_checks": [],
+    }
+
+
+def _write_execution_snapshot_manifest(
+    handoff: Dict[str, Any],
+    report: Dict[str, Any],
+    report_path: str,
+) -> str:
+    """根据执行报告写最小 snapshot manifest。"""
+    baseline_ref = handoff.get("baseline_context", {}).get("snapshot_ref") or handoff.get("metadata", {}).get(
+        "baseline_snapshot_ref", ""
+    )
+    digest = handoff.get("metadata", {}).get("source_project_state_digest", "") or handoff.get("handoff_id", "")
+    return write_snapshot_manifest(
+        baseline_ref=baseline_ref,
+        digest=digest,
+        source_report=report_path,
+        extra_fields={
+            "execution_status": report.get("execution_status", ""),
+            "handoff_id": handoff.get("handoff_id", ""),
+        },
+    )
+
+
+def _build_minimal_promotion_status(
+    handoff: Dict[str, Any],
+    result: Dict[str, Any],
+    snapshot_ref: str,
+) -> Dict[str, Any]:
+    """优先通过治理域生成最小 promotion 状态。"""
+    base_domain_refs = handoff.get("governance_context", {}).get("base_domain_refs", [])
+    base_domains = load_base_domain_modules(base_domain_refs)
+    governance_entry = base_domains.get("domain_map", {}).get("planning_governance", {})
+    governance_module = governance_entry.get("module")
+
+    if governance_module is not None and hasattr(governance_module, "build_promotion_status"):
+        return governance_module.build_promotion_status(handoff, result, snapshot_ref)
+
+    return {
+        "current_state": "approved" if result.get("status") == "succeeded" else "reviewed",
+        "snapshot_ref": snapshot_ref,
+        "transitions": [],
+        "audit_note": "使用默认最小 promotion 状态",
+    }
+
+
+def _rewrite_execution_report(report_path: str, report: Dict[str, Any]) -> None:
+    """在补齐治理字段后覆写执行报告。"""
+    with open(report_path, "w", encoding="utf-8") as file:
+        json.dump(report, file, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":

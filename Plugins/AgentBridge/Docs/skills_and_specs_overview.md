@@ -21,7 +21,7 @@ Skills 和 Specs 是 AgentBridge 框架的两个互补体系：
 
 | 核心 | 定位 | 阶段 |
 |------|------|------|
-| **Base Skill Domains** | 通用编译骨架（10 个域） | Phase 7 完整化 |
+| **Base Skill Domains** | 通用编译骨架（10 个域） | Phase 7 最小真实化 |
 | **Genre Skill Packs** | 类型化编译策略包 | Phase 6 完整化 |
 
 ### 2.2 Base Skill Domains（10 个域）
@@ -41,7 +41,7 @@ Skills 和 Specs 是 AgentBridge 框架的两个互补体系：
 | QA & Validation | 测试和验证 | P1 |
 | Planning & Governance | 规划和治理 | P2 |
 
-**当前状态**：目录已保留，Phase 7 完整实装。
+**当前状态**：目录已保留，Phase 7 落地真实 registry / loader，并优先实装 `qa_validation` 与 `planning_governance`。
 
 ### 2.3 Genre Skill Packs（类型包）
 
@@ -57,9 +57,9 @@ Skills 和 Specs 是 AgentBridge 框架的两个互补体系：
 | Validation Extensions | 类型化验证扩展 |
 | Delta Policy | Brownfield 增量策略 |
 
-**首个类型包**：`boardgame`（棋盘游戏）
+**当前类型包**：`boardgame`（棋盘游戏） + `jrpg`（回合制 JRPG）
 
-**当前状态**：Phase 6 已落地 `_core` 最小机制与 `boardgame` 首个真实类型包。Compiler 现在会真正消费 pack manifest、required skills、review extensions、validation extensions 与 delta policy。
+**当前状态**：Phase 7 已在 `_core` 上扩展第二个真实类型包 `jrpg`。Compiler 现在会真正消费 pack manifest、required skills、review extensions、validation extensions 与 delta policy。
 
 ### 2.4 目录结构
 
@@ -73,7 +73,9 @@ Skills/
     │   ├── registry.py
     │   ├── router_base.py
     │   └── module_loader.py
-    └── boardgame/
+    ├── boardgame/
+    │   ├── pack_manifest.yaml
+    └── jrpg/
         ├── pack_manifest.yaml
         ├── required_skills/
         ├── review_extensions/
@@ -181,5 +183,5 @@ Reviewed Handoff
 | **Phase 3（已完成）** | boardgame 最小骨架 | 最小 pack manifest + 现有 templates |
 | **Phase 4（已完成）** | — | Static Base Layer A+B + 自动 Spec 生成 |
 | **Phase 5（已完成）** | — | Brownfield Baseline / Delta / Contracts 最小落地 |
-| **Phase 6（进行中）** | Genre Pack 完整化 + `_core` 机制 + boardgame playable pipeline | Boardgame Genre Contracts |
-| **Phase 7** | Base Domains 完整实装 + 第二个类型包 | — |
+| **Phase 6（已完成）** | Genre Pack 完整化 + `_core` 机制 + boardgame playable pipeline | Boardgame Genre Contracts |
+| **Phase 7（进行中）** | 治理闭环 + Base Domains 最小真实化 + 第二个类型包 | Validation / Recovery / Snapshot / Promotion / JRPG |

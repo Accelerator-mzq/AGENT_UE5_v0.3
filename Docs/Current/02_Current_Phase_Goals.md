@@ -1,26 +1,32 @@
-# Phase 7 准备期目标
+# 当前阶段目标
 
-> 文档版本：L1-Phase7Prep-v1
+> 阶段：Phase 7 — 正式开发期（治理闭环 + JRPG 第二类型包）
 
 ## 本期目标
 
-本期目标不是继续扩功能，而是把 `Phase 6` 的成果沉淀成稳定基线，并为下一阶段立项：
-
-1. 完成 `Phase 6` 任务、证据与测试总表的正式归档
-2. 保持 `Phase 4~6` 的核心链路仍可重复验证
-3. 明确下一阶段主题、边界与成功标准
-4. 明确下一阶段测试编号策略与入口治理方式
+1. 把文档和任务入口从“准备期”切换到“正式开发期”
+2. 落地最小治理闭环：
+   - Validation Inserter
+   - Recovery Planner
+   - Regression Summary
+   - Freeze / Snapshot Manifest
+   - Minimal Promotion
+3. 把 `Skills/base_domains/` 从占位目录升级为真实 registry + loader
+4. 落地第二个类型包 `JRPG Turn-Based`
+5. 给 Phase 7 建立独立测试入口，但不提前改总表
 
 ## 成功标准
 
-1. [task4_phase6.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/History/Tasks/task4_phase6.md) 已成为上一阶段正式归档入口
-2. `Phase 6` 已验证通过的用例已补录进 [SystemTestCases.md](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/SystemTestCases.md)
-3. `Docs/Current/*` 不再把 `Phase 6` 当作当前活动阶段
-4. 下一阶段的任务入口、边界和测试治理方式已经明确
+- `Docs/Current/*` 与入口文档不再出现“Phase 7 准备期”口径
+- 根目录 [task.md](/D:/UnrealProjects/Mvpv4TestCodex/task.md) 按正式开发期结构重建
+- `run_plan` 支持 `validation_checkpoints[]` 与 `recovery_policy_ref`
+- 执行报告支持 `regression_summary`、`snapshot_ref`、`promotion_status`
+- `base_domains` 可注册 10 个域，其中 `qa_validation` 与 `planning_governance` 为真实实现
+- `jrpg` pack 能从 GDD 生成最小可玩的结构化闭环，并支持 Greenfield / Brownfield 路径
 
 ## 本期不做
 
-- 不启动新的大规模功能开发
-- 不提前实现第二个 Genre Pack
-- 不重构现有 Bridge / Orchestrator / Subsystem 主链
-- 不在下一阶段目标未批准前扩展新的测试编号体系
+- 不在阶段中途改 [SystemTestCases.md](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/SystemTestCases.md)
+- 不在阶段中途改 [run_system_tests.py](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/run_system_tests.py) 的 `206` 条总表口径
+- 不做完整 Promotion 流水线
+- 不做像素级回归对比

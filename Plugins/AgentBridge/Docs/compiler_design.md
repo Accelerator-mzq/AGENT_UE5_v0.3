@@ -1,6 +1,6 @@
 # Skill Compiler Plane 设计
 
-> 文档版本：v0.5.0（Phase 6 口径）
+> 文档版本：v0.7.0（Phase 7 口径）
 
 ## 1. 定位
 
@@ -38,7 +38,7 @@ Scripts/compiler/
     └── handoff_serializer.py
 ```
 
-并且 Phase 6 起，Compiler 会显式消费：
+并且 Phase 7 起，Compiler 会显式消费：
 
 ```text
 Skills/genre_packs/_core/
@@ -100,9 +100,9 @@ GDD + Project State
 - `python Scripts/run_brownfield_demo.py`
 - `python Scripts/run_boardgame_playable_demo.py`
 
-## 6. Phase 6 新增输出
+## 6. Phase 7 当前输出
 
-- `dynamic_spec_tree` 增加完整 boardgame runtime 节点：
+- `dynamic_spec_tree` 同时支持 `boardgame` 与 `jrpg` 两条最小类型包路径：
   - `board_layout_spec`
   - `piece_movement_spec`
   - `turn_flow_spec`
@@ -114,6 +114,6 @@ GDD + Project State
 ## 7. 当前边界
 
 - Greenfield 主链不允许回归
-- Brownfield 当前只执行 append/new-actor 样板
-- `SystemTestCases.md` 的 Phase 6 用例在阶段归档时再补录
-- playable runtime 当前只要求井字棋样板可玩，不承诺泛化到所有 boardgame
+- Brownfield 当前仍以 append/new-actor 为最小主链
+- Phase 7 新测试只维护在根目录 `task.md`，阶段归档时再补录总表
+- 第二个类型包固定为 `JRPG Turn-Based`，用于验证多类型扩展而不是替代现有 boardgame 主链

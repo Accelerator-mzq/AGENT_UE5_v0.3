@@ -80,6 +80,10 @@
         }
       }
     },
+    "recovery_policy_ref": {
+      "type": "string",
+      "description": "恢复策略引用"
+    },
     "recovery_policies": {
       "type": "object",
       "description": "恢复策略"
