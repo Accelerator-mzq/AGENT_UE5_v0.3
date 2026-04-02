@@ -231,7 +231,7 @@ Step 3：把结果写入 `ProjectState/Reports/`。
 - `E2E-32`：promotion simulated 成功
 - `E2E-33`：JRPG simulated 编译成功
 - `E2E-34`：JRPG simulated 执行成功
-- `E2E-35`：JRPG 真实 UE5 smoke 具备入口
+- `E2E-35`：JRPG 真实 UE5 smoke 成功并留存 6 张证据图
 - `E2E-36`：boardgame 回归仍保持可跑
 
 ## 当前阶段测试清单（仅本期维护）
@@ -266,5 +266,5 @@ Step 3：把结果写入 `ProjectState/Reports/`。
 - `E2E-32`：simulated 路径能留下 minimal promotion 审计
 - `E2E-33`：`python Scripts/run_jrpg_turn_based_demo.py simulated` 可生成 JRPG handoff
 - `E2E-34`：`python Scripts/run_jrpg_turn_based_demo.py simulated` 可执行成功
-- `E2E-35`：JRPG 真实 UE5 smoke 入口存在且参数可用
+- `E2E-35`：JRPG 真实 UE5 smoke 成功，关键 Actor 布局与结构级 battle loop 校验通过
 - `E2E-36`：`boardgame` Greenfield / Brownfield / playable 回归入口仍存在
