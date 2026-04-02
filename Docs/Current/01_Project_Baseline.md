@@ -1,66 +1,46 @@
 # 项目基线
 
-> 文档版本：L1-Phase7Prep-v1  
-> 基线状态：Phase 6 已归档，当前处于 Phase 7 准备期
+> 文档版本：L1-Phase7-v1
+> 更新时间：2026-04-02
 
-## 已实装能力
+## 1. 当前阶段事实
 
-### 插件核心（Phase 1-2 稳定）
+- `Phase 6` 已完成并归档，完整任务见 [task4_phase6.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/History/Tasks/task4_phase6.md)
+- `Phase 7` 当前已进入正式开发期，准备期任务已归档到 [task5_phase7_preparation.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/History/Tasks/task5_phase7_preparation.md)
+- 项目层当前稳定保留三条可回归主链：
+  - Greenfield：`Scripts/run_greenfield_demo.py`
+  - Brownfield：`Scripts/run_brownfield_demo.py`
+  - Boardgame playable runtime：`Scripts/run_boardgame_playable_demo.py`
+- 插件层当前总表仍维持 `206` 条已归档测试口径，不在本阶段中途扩容
 
-- AgentBridge C++ Editor Plugin（UEditorSubsystem）
-- Bridge 三通道：Python / Remote Control API / C++ Plugin
-- L1/L2/L3 受控工具体系
-- Automation Test / Automation Spec / Functional Testing / Gauntlet
+## 2. 已稳定的 Phase 6 能力
 
-### Greenfield / Brownfield 已闭环基线（Phase 3-5）
+- `boardgame` 已是首个真实类型包，支持 `_core` + manifest + required skills + review / validation / delta policy
+- `preview_static` 与 `runtime_playable` 双投影已落地
+- `Brownfield append/new-actor` 最小闭环已落地
+- 项目层 playable runtime、真实截图证据与顶视图验收已经落地
 
-- `design_input_intake.py` 已能解析 boardgame GDD
-- `StaticBase` registry + 10 个静态基座已落地
-- `project_state_intake.py` / `baseline_builder.py` / `delta_scope_analyzer.py` 已支撑 Brownfield 最小闭环
-- `Specs/Contracts/` 已具备 Common Contract registry 与 3 类 Common Contract Model
-- `Scripts/run_greenfield_demo.py` 与 `Scripts/run_brownfield_demo.py` 已支持 simulated 最小闭环
+## 3. Phase 7 当前目标基线
 
-### Phase 6 已归档基线
+本期不重做 Phase 6，而是在其上补齐以下最小能力：
 
-- `_core + boardgame pack` 已接入 Compiler 主链
-- `dynamic_spec_tree` 已稳定生成 10 个关键节点
-- 项目层 `BoardgamePrototypeBoardActor.*` 已提供最小 runtime actor
-- `runtime_playable` handoff 已接入 `ProjectState/RuntimeConfigs/`
-- `Scripts/run_boardgame_playable_demo.py` 已作为 playable runtime 主入口
-- `Scripts/validation/capture_editor_evidence.py` 已作为阶段无关截图脚本接入
-- `Phase 6` 真实 `bridge_rc_api` playable smoke、自动落子读回、截图证据与顶视图规则已完成闭环
+1. `Validation Inserter`
+2. `Recovery Planner`
+3. Actor 级 `Regression Summary`
+4. `Freeze / Snapshot Manifest`
+5. `Minimal Promotion`
+6. `Base Skill Domains` 最小真实化
+7. 第二个 `Genre Pack`：`JRPG Turn-Based`
 
-## 当前架构状态
+## 4. 当前目录与落盘约定
 
-```text
-Design Inputs + Existing Project State
-→ Static Spec Base / Contracts / Genre Pack Core
-→ Required Skills / Review Extensions / Validation Extensions / Delta Policy
-→ Dynamic / Delta Spec Tree
-→ Reviewed Handoff
-→ Run Plan
-→ Handoff Runner
-→ Bridge
-→ UE5
-→ Report / Runtime Config / Evidence
-```
+- 项目级报告：`ProjectState/Reports/YYYY-MM-DD/`
+- 插件级报告：`Plugins/AgentBridge/reports/YYYY-MM-DD/`
+- Snapshot：`ProjectState/Snapshots/YYYY-MM-DD/`
+- 当前阶段证据与记录统一继续落在项目目录内，不扩写到项目外目录
 
-## 当前已验证的本地链路
+## 5. 当前不变的治理约束
 
-- `python Plugins/AgentBridge/Scripts/validation/validate_examples.py --strict`
-- `pytest Plugins/AgentBridge/Tests/scripts/test_phase4_compiler.py`
-- `pytest Plugins/AgentBridge/Tests/scripts/test_phase5_brownfield.py`
-- `pytest Plugins/AgentBridge/Tests/scripts/test_phase6_playable_runtime.py`
-- `python Scripts/run_greenfield_demo.py`
-- `python Scripts/run_brownfield_demo.py`
-- `python Scripts/run_boardgame_playable_demo.py`
-- UBT 编译 `Mvpv4TestCodexEditor` 通过
-- `Phase 6` 真机验收与截图证据已归档，见
-  [phase6_runtime_acceptance_20260402_025815.json](/D:/UnrealProjects/Mvpv4TestCodex/ProjectState/Reports/phase6_runtime_acceptance_20260402_025815.json)
-
-## 当前限制
-
-- `runtime_playable` 仍然是井字棋样板实现，不等于通用 boardgame runtime
-- `patch / replace / migrate` 仍然只做到表达、校验与阻断
-- Brownfield 的 runtime / turn/ui patch 仍未自动执行
-- 下一阶段功能范围尚未冻结，当前只允许继续做基线整理、稳定性观察与任务立项
+- `SystemTestCases.md` 与 `run_system_tests.py` 在 Phase 7 开发期保持现状，不提前写入新编号
+- 现有 `boardgame` 主链必须继续可回归
+- `Phase 7` 新增能力优先通过新增模块接入，不重写稳定核心

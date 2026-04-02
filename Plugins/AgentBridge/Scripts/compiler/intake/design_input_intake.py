@@ -55,6 +55,8 @@ def build_design_input(content: str, source_file: str) -> Dict[str, Any]:
     """将 Markdown GDD 转成 Phase 4 结构化输入。"""
     game_type = extract_game_type(content)
     board = extract_board_spec(content)
+    party_setup = extract_party_setup(content)
+    combat_spec = extract_combat_spec(content)
     piece_catalog = extract_piece_catalog(content)
     rules = extract_rules(content)
     initial_layout = extract_initial_layout(content, board)
@@ -67,6 +69,8 @@ def build_design_input(content: str, source_file: str) -> Dict[str, Any]:
         "game_type": game_type,
         "feature_tags": feature_tags,
         "board": board,
+        "party_setup": party_setup,
+        "combat_spec": combat_spec,
         "piece_catalog": piece_catalog,
         "rules": rules,
         "initial_layout": initial_layout,
@@ -83,9 +87,73 @@ def build_design_input(content: str, source_file: str) -> Dict[str, Any]:
 def extract_game_type(content: str) -> str:
     """从 GDD 内容提取游戏类型。"""
     normalized = content.lower()
+    if "jrpg" in normalized or "回合制rpg" in content or "回合制 jrpg" in normalized:
+        return "jrpg"
+    if "turn-based rpg" in normalized or "turn based rpg" in normalized:
+        return "jrpg"
     if "boardgame" in normalized or "棋盘游戏" in content or "棋盘" in content:
         return "boardgame"
     return "unknown"
+
+
+def extract_party_setup(content: str) -> Dict[str, Any]:
+    """解析 JRPG 的最小队伍配置。"""
+    if extract_game_type(content) != "jrpg":
+        return {
+            "heroes": [],
+            "enemies": [],
+        }
+
+    party_section = _extract_markdown_section(content, "队伍配置") or _extract_markdown_section(content, "角色配置")
+    heroes = []
+    enemies = []
+    for line in _extract_bullet_lines(party_section):
+        normalized = line.lower()
+        if "hero" in normalized or "主角" in line:
+            heroes.append(line.split("：")[-1].split(":")[-1].strip())
+        elif "enemy" in normalized or "敌人" in line:
+            enemies.append(line.split("：")[-1].split(":")[-1].strip())
+
+    if not heroes:
+        heroes = ["HeroUnit_1"]
+    if not enemies:
+        enemies = ["EnemyUnit_1"]
+
+    return {
+        "heroes": heroes,
+        "enemies": enemies,
+    }
+
+
+def extract_combat_spec(content: str) -> Dict[str, Any]:
+    """解析 JRPG 最小战斗信息。"""
+    if extract_game_type(content) != "jrpg":
+        return {
+            "battle_mode": "",
+            "command_menu": [],
+            "victory_condition": "",
+        }
+
+    gameplay_section = _extract_markdown_section(content, "核心玩法")
+    command_menu = []
+    for line in _extract_bullet_lines(gameplay_section):
+        if "菜单" in line or "command" in line.lower():
+            command_menu.extend([item.strip() for item in re.split(r"[、/,]", line.split("：")[-1]) if item.strip()])
+
+    if not command_menu:
+        command_menu = ["Attack", "Skill", "Defend"]
+
+    victory_condition = ""
+    for line in _extract_bullet_lines(gameplay_section):
+        if "胜利" in line:
+            victory_condition = line.split("：")[-1].strip()
+            break
+
+    return {
+        "battle_mode": "turn_based",
+        "command_menu": command_menu,
+        "victory_condition": victory_condition or "击败全部敌人",
+    }
 
 
 def extract_board_spec(content: str) -> Dict[str, Any]:
@@ -289,11 +357,15 @@ def extract_feature_tags(
     if rules.get("turn_model") == "turn_based":
         tags.append("turn_based")
 
+    if game_type == "jrpg":
+        tags.append("jrpg_turn_based")
+
     grid_size = board.get("grid_size", [])
-    if grid_size == [3, 3]:
-        tags.append("grid_3x3")
-    elif len(grid_size) == 2:
-        tags.append(f"grid_{grid_size[0]}x{grid_size[1]}")
+    if game_type == "boardgame":
+        if grid_size == [3, 3]:
+            tags.append("grid_3x3")
+        elif len(grid_size) == 2:
+            tags.append(f"grid_{grid_size[0]}x{grid_size[1]}")
 
     if prototype_preview.get("generate_preview"):
         tags.append("prototype_preview")

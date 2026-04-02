@@ -1,0 +1,63 @@
+pack_id: "genre-jrpg"
+version: "0.7.0"
+title: "JRPG Turn-Based Genre Skill Pack"
+status: "phase7_governance_minimal"
+description: "回合制 JRPG 类型包，支持从 GDD 生成最小战斗场景、命令菜单与治理闭环。"
+router:
+  primary_router: "genre_jrpg_router"
+  fallback_routers: []
+activation:
+  keywords:
+    - "jrpg"
+    - "rpg"
+    - "回合制rpg"
+    - "回合制 jrpg"
+    - "turn-based rpg"
+    - "turn based rpg"
+  min_confidence: 0.7
+required_skills:
+  - "battle_layout"
+  - "turn_queue"
+  - "command_menu"
+optional_skills: []
+review_extensions:
+  - "jrpg_reviewer"
+validation_extensions:
+  - "jrpg_validator"
+delta_policy:
+  provider: "jrpg_delta_policy"
+  enabled: true
+policy:
+  prefer_incremental: true
+  allow_mixed_mode: false
+  default_projection_profile: "preview_static"
+dependencies:
+  base_domains:
+    - "product_scope"
+    - "runtime_gameplay"
+    - "presentation_asset"
+    - "qa_validation"
+    - "planning_governance"
+  static_base:
+    - "WorldBuildStaticSpec"
+    - "ValidationStaticSpec"
+    - "GameplayFrameworkStaticSpec"
+    - "UIModelStaticSpec"
+  genre_contracts: []
+outputs:
+  typical_specs:
+    - "world_build_spec"
+    - "jrpg_spec"
+    - "battle_layout_spec"
+    - "turn_queue_spec"
+    - "command_menu_spec"
+    - "runtime_wiring_spec"
+    - "validation_spec"
+    - "scene_spec"
+  typical_workflows:
+    - "spawn_actor"
+metadata:
+  author: "AgentBridge Team"
+  created_at: "2026-04-02"
+  last_updated: "2026-04-02"
+  note: "Phase 7 起用于验证第二个真实类型包与治理闭环的最小组合。"

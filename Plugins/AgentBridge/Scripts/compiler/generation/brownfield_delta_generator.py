@@ -39,14 +39,13 @@ def generate_brownfield_delta_tree(
         ),
         "contract_refs": list(delta_context.get("contract_refs", [])),
         "scene_spec": {"actors": new_scene_actors},
-        "boardgame_spec": copy.deepcopy(full_target_tree.get("boardgame_spec", {})),
         "validation_spec": _build_delta_validation_spec(
             full_target_tree=full_target_tree,
             delta_context=delta_context,
             contract_registry=contract_registry,
         ),
         "generation_trace": {
-            "generator": "AgentBridge.Compiler.Phase6.BrownfieldDeltaGenerator",
+            "generator": "AgentBridge.Compiler.Phase7.BrownfieldDeltaGenerator",
             "baseline_id": baseline_snapshot.get("baseline_id", ""),
             "delta_intent": delta_context.get("delta_intent", ""),
             "contract_registry_ref": contract_registry.get("registry_path", ""),
@@ -55,16 +54,11 @@ def generate_brownfield_delta_tree(
         },
     }
 
-    for node_name in [
-        "world_build_spec",
-        "board_layout_spec",
-        "piece_movement_spec",
-        "turn_flow_spec",
-        "decision_ui_spec",
-        "runtime_wiring_spec",
-    ]:
-        if node_name in full_target_tree:
-            delta_tree[node_name] = copy.deepcopy(full_target_tree[node_name])
+    for node_name, node_value in full_target_tree.items():
+        if node_name in {"scene_spec", "validation_spec", "generation_trace"}:
+            continue
+        if node_name.endswith("_spec"):
+            delta_tree[node_name] = copy.deepcopy(node_value)
 
     return delta_tree
 

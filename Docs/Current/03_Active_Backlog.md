@@ -1,28 +1,24 @@
-# 待办与卡点
+# 当前待办
 
-> 文档版本：L1-Phase7Prep-v1
+> 文档版本：L1-Phase7-v1
 
-## 当前 P0 待办
+## P0 — 必做
 
-- 明确下一阶段主题与成功标准
-- 决定下一阶段测试编号是直接进入 `SystemTestCases.md`，还是先在根目录 `task.md` 维护
-- 继续观察真实 UE5 playable smoke 的重复稳定性，确认是否需要单列长期回归门禁
+- 完成 Phase 7 文档与入口切换
+- 完成根目录 [task.md](/D:/UnrealProjects/Mvpv4TestCodex/task.md) 重建
+- 落地治理最小闭环：validation / recovery / regression / snapshot / promotion
+- 实装 `base_domains` registry + loader
+- 实装 `jrpg` 第二类型包与最小 demo
+- 补 Phase 7 的 pytest / simulated 回归入口
 
-## 当前 P1 待办
+## P1 — 本期观察项
 
-- 评估 `BoardgamePrototypeBoardActor` 是否需要向更通用的 boardgame runtime 抽象
-- 评估 Brownfield runtime / turn/ui patch 是否进入真实执行阶段
-- 整理下一阶段需要复用的 Phase 6 证据与报告清单
+- `boardgame` 主链回归是否保持稳定
+- `jrpg` Greenfield / Brownfield 是否复用同一 pack manifest 族
+- Snapshot 与 Promotion 记录是否足够支撑后续归档
 
-## 当前门禁项
+## P2 — 留到后续阶段
 
-- `Phase 6` 任务、证据与测试入口已归档
-- `Phase 6` 真实 UE5 `bridge_rc_api` smoke、截图证据与顶视图门禁已通过
-- 当前没有阻止归档的 P0 阻塞项
-- 当前阶段的主要门禁转为“下一阶段范围未冻结，不进入新功能开发”
-
-## 当前策略
-
-- 根目录 `task.md` 只维护下一阶段准备期任务
-- `SystemTestCases.md` 已补录 `Phase 6` 用例，后续按统一总表继续演进
-- `ProjectState/Snapshots/` 与历史证据归档继续严格分责
+- Promotion 多级审批流水线
+- 更深层的 repair 自动修复
+- 多个新 pack 并行扩展

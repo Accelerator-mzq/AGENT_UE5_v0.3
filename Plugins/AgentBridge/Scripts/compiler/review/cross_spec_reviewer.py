@@ -90,7 +90,7 @@ def review_dynamic_spec_tree(
     return {
         "status": "reviewed" if reviewed else "blocked",
         "reviewed": reviewed,
-        "reviewer": "AgentBridge.Compiler.CrossSpecReviewer.v0.5",
+        "reviewer": "AgentBridge.Compiler.CrossSpecReviewer.v0.7",
         "review_notes": review_notes,
         "errors": errors,
         "warnings": warnings,

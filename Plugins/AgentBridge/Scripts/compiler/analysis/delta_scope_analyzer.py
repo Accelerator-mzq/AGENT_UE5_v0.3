@@ -142,7 +142,7 @@ def analyze_delta_scope(
         required_regression_checks.append("baseline_actor_presence")
         contract_refs = ["RegressionValidationContractModel"]
 
-    affected_specs = _build_affected_specs(append_specs, patch_specs, replace_specs)
+    affected_specs = _build_affected_specs(append_specs, patch_specs, replace_specs, target_dynamic_spec_tree)
     if _has_runtime_sensitive_specs(target_dynamic_spec_tree):
         affected_specs.extend(["turn_flow_spec", "decision_ui_spec", "runtime_wiring_spec"])
         required_regression_checks.extend(delta_policy.get("regression_focus", []))
@@ -190,13 +190,15 @@ def _build_affected_specs(
     append_specs: List[Dict[str, Any]],
     patch_specs: List[Dict[str, Any]],
     replace_specs: List[Dict[str, Any]],
+    target_dynamic_spec_tree: Dict[str, Any],
 ) -> List[str]:
     """根据差量内容推导受影响 spec。"""
     affected_specs = []
     if append_specs or patch_specs or replace_specs:
         affected_specs.extend(["scene_spec", "validation_spec"])
-    if append_specs:
-        affected_specs.append("boardgame_spec")
+    for node_name in ["boardgame_spec", "jrpg_spec", "turn_flow_spec", "decision_ui_spec", "runtime_wiring_spec", "turn_queue_spec", "command_menu_spec"]:
+        if node_name in target_dynamic_spec_tree:
+            affected_specs.append(node_name)
     return sorted(set(affected_specs))
 
 
@@ -209,9 +211,11 @@ def _build_affected_domains(affected_specs: List[str]) -> List[str]:
         domains.append("validation")
     if "boardgame_spec" in affected_specs:
         domains.append("governance")
-    if "turn_flow_spec" in affected_specs or "runtime_wiring_spec" in affected_specs:
+    if "jrpg_spec" in affected_specs:
+        domains.append("governance")
+    if "turn_flow_spec" in affected_specs or "runtime_wiring_spec" in affected_specs or "turn_queue_spec" in affected_specs:
         domains.append("runtime")
-    if "decision_ui_spec" in affected_specs:
+    if "decision_ui_spec" in affected_specs or "command_menu_spec" in affected_specs:
         domains.append("ui")
     return [domain for domain in domains if domain in SUPPORTED_DOMAINS]
 
@@ -220,5 +224,5 @@ def _has_runtime_sensitive_specs(target_dynamic_spec_tree: Dict[str, Any]) -> bo
     """判断目标树是否包含回合/UI/runtime 节点。"""
     return any(
         node_name in target_dynamic_spec_tree
-        for node_name in ["turn_flow_spec", "decision_ui_spec", "runtime_wiring_spec"]
+        for node_name in ["turn_flow_spec", "decision_ui_spec", "runtime_wiring_spec", "turn_queue_spec", "command_menu_spec"]
     )
