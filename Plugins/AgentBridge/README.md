@@ -1,7 +1,7 @@
 # AgentBridge — UE5 通用 Agent 开发框架插件
 
-> 插件版本：v0.7.0
-> 文档口径：Phase 7 已归档
+> 插件版本：v0.8.0
+> 文档口径：Phase 8 已收尾
 > 目标引擎版本：UE5.5.4
 
 ## 1. 插件定义
@@ -25,12 +25,15 @@
 - Reviewed Handoff / Run Plan / Handoff Runner
 - Greenfield / Brownfield / Playable Runtime 主链
 
-### 最近已完成阶段
+### 已完成阶段沉淀
 
 - `Scripts/orchestrator/`：validation inserter / recovery planner / minimal promotion / regression summary 已在 Phase 7 落地
 - `Skills/base_domains/`：registry / loader / `qa_validation` / `planning_governance` 已在 Phase 7 落地
 - `Skills/genre_packs/jrpg/`：第二个真实类型包已在 Phase 7 落地
-- `Scripts/run_jrpg_turn_based_demo.py`：已作为 Phase 7 JRPG 主入口归档留证
+- `Compiler/`：Phase 8 Skill-First 6 阶段骨架已落地
+- `SkillTemplates/`：Phase 8 Monopoly Template Pack 已落地
+- `MCP/`：Phase 8 MCP Server 占位骨架已落地
+- `Tests/SystemTestCases.md` / `run_system_tests.py`：已补录到 `234` 条总表口径
 
 ## 3. 目录结构
 
@@ -40,13 +43,16 @@ AgentBridge/
 ├── AGENTS.md
 ├── Source/
 ├── Scripts/
-│   ├── compiler/
+│   ├── compiler/        # legacy compiler plane
 │   ├── orchestrator/
 │   ├── bridge/
 │   └── validation/
+├── Compiler/            # Phase 8 Skill-First compiler skeleton
 ├── Schemas/
 ├── Specs/
 ├── Skills/
+├── SkillTemplates/
+├── MCP/
 ├── Docs/
 ├── Tests/
 └── Gauntlet/
@@ -72,5 +78,5 @@ AgentBridge/
 - Greenfield 主链必须保持稳定
 - Brownfield 当前只真正支持 append / new-actor 最小闭环
 - `patch / replace / migrate` 当前只做到表达、校验与阻断
-- 项目级 `task.md` 在阶段进行中作为任务入口，阶段结束后归档到 `Docs/History/Tasks/`
-- Phase 7 归档后，[SystemTestCases.md](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/SystemTestCases.md) 与 [run_system_tests.py](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/run_system_tests.py) 已同步到 `230` 条总表口径
+- 项目级 `task.md` 在阶段进行中作为任务入口；Phase 8 已归档到 [task8_phase8.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/History/Tasks/task8_phase8.md)
+- [SystemTestCases.md](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/SystemTestCases.md) 与 [run_system_tests.py](/D:/UnrealProjects/Mvpv4TestCodex/Plugins/AgentBridge/Tests/run_system_tests.py) 当前登记为 `234` 条用例

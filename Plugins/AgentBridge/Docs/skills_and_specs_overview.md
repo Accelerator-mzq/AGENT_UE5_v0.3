@@ -207,4 +207,5 @@ Reviewed Handoff
 | **Phase 4（已完成）** | — | Static Base Layer A+B + 自动 Spec 生成 |
 | **Phase 5（已完成）** | — | Brownfield Baseline / Delta / Contracts 最小落地 |
 | **Phase 6（已完成）** | Genre Pack 完整化 + `_core` 机制 + boardgame playable pipeline | Boardgame Genre Contracts |
-| **Phase 7（进行中）** | 治理闭环 + Base Domains 最小真实化 + 第二个类型包 | Validation / Recovery / Snapshot / Promotion / JRPG |
+| **Phase 7（已完成）** | 治理闭环 + Base Domains 最小真实化 + 第二个类型包 | Validation / Recovery / Snapshot / Promotion / JRPG |
+| **Phase 8（已完成）** | Skill Template Pack 三层结构 + Monopoly `monopoly_like` 模板包 | Skill-First Compiler / Reviewed Handoff v2 / Monopoly 垂直切片 |

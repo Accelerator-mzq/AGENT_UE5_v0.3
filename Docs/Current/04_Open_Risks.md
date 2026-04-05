@@ -1,25 +1,19 @@
 # 当前风险
 
-> 文档版本：L1-Phase8-v2
+> 文档版本：L1-Phase8-v3
 
-## 已降级风险
+## 已关闭风险
 
 - Phase 7 治理闭环风险已关闭。
 - JRPG 第二类型包复用风险已关闭。
-- Phase 8 运行时 HUD 可见性与输入焦点问题已定位并修复，但对应防回归清单仍需固化，见 [08_Phase8_Retrospective_And_Phase9_Checklist.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/Current/08_Phase8_Retrospective_And_Phase9_Checklist.md)。
+- Phase 8 运行时 HUD 可见性与输入焦点问题已定位并修复，相关证据见 [phase8_task06_validation_2026-04-05_230956.json](/D:/UnrealProjects/Mvpv4TestCodex/ProjectState/Reports/2026-04-05/phase8_task06_validation_2026-04-05_230956.json)。
+- Phase 8 的运行时冒烟验证缺口已在本阶段通过自动化补强和人工冒烟补齐。
 
-## Phase 8 当前风险
+## 结转到下一阶段的风险
 
-| 风险 | 严重度 | 说明 | 缓解措施 |
+| 风险 | 严重度 | 说明 | 下一步 |
 |------|--------|------|----------|
-| C++ 编译兼容性 | 中 | 项目层新增多对 C++ 文件，可能与现有模块依赖或 UHT 生成冲突 | Build.cs 正确配置依赖；每个 Batch 完成后立即编译验证 |
-| 编辑器级运行时冒烟验证缺口 | 中高 | `--no-editor` 与 simulated 回归无法覆盖默认地图、默认 GameMode、场景可见性、HUD 可见与按钮可点击等真实交互问题 | 将编辑器内 Play 冒烟纳入后续阶段验收，并按复盘文档补齐清单 |
-| 骰子/棋子动画占位 | 低 | Phase 1 动画为占位函数，视觉效果有限 | 不阻塞功能验收，后续阶段补充 |
-| 3D 资产缺失 | 低 | Phase 1 使用基础几何体，无美术资源 | 功能验证优先，不影响逻辑正确性 |
-| Build IR 与实际执行偏差 | 中 | 14 步 Build IR 是理论设计，执行中可能发现参数与集成细节需要调整 | Execution Agent 按 Batch 执行，每步验证后再继续 |
-| 现有 230 条测试回归 | 低 | Phase 8 新增产物可能影响现有测试 | M4 统一回归验证 |
-
-## 仍保留的长期风险
-
-- 若下一阶段扩展到 Phase 2 网络多人，GameMode/GameState 的 Replication 改造量较大。
-- 若后续新增第三个 genre pack，Skill Template Pack 目录结构仍需继续验证通用性。
+| MCP Server 仍为占位骨架 | 中 | Phase 8 只落地了目录、工具定义和基础骨架，尚未形成完整可执行服务 | 进入下一阶段后评估最小可用实现 |
+| 联网多人复制改造量较大 | 中 | 若从 Phase 1 扩展到网络多人，需要重做 `GameMode / GameState / PlayerState` 的复制策略 | Phase 9 立项时单独评估 |
+| 第三个 genre pack 的通用性尚未验证 | 低中 | 当前只验证到 `boardgame` 与 `jrpg` 两类 | 后续新增类型包时继续验证 |
+| Phase 8 运行时防回归规则仍需制度化 | 中 | 复盘结论已经形成，但还需要在后续阶段持续贯彻 | 延续 [08_Phase8_Retrospective_And_Phase9_Checklist.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/Current/08_Phase8_Retrospective_And_Phase9_Checklist.md) |
