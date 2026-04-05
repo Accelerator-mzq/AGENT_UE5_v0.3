@@ -47,7 +47,7 @@
 | GA | Gauntlet CI/CD | UE5 + UAT | `RunUAT.bat RunUnreal -test=SmokeTests/AllTests` |
 | E2E | 端到端集成 | 全栈 | 多步流水线（Schema→Cmd→Gauntlet→三通道脚本） |
 
-> 全部 230 条用例均已登记到当前测试总表。证据目录分层为：`ProjectState/Reports/`（当期执行）+ `Docs/History/reports/AgentBridgeEvidence/`（历史归档）。
+> 全部 234 条用例均已登记到当前测试总表。证据目录分层为：`ProjectState/Reports/`（当期执行）+ `Docs/History/reports/AgentBridgeEvidence/`（历史归档）。
 
 ---
 

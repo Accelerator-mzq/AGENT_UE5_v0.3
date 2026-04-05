@@ -1,6 +1,6 @@
 # 当前待办
 
-> 文档版本：L1-Phase8-v1
+> 文档版本：L1-Phase8-v2
 
 ## 已完成事项
 
@@ -10,20 +10,20 @@
 - M2：Main Chain 5 阶段数据生成 + Handoff v2 组装（11 JSON） ✅
 - DD-3：14 Build Steps → C++ 类映射 + UMG 布局方案 ✅
 - TASK 01（文档切换）：项目层 + 插件层入口统一到 Phase 8 口径 ✅
+- M3（TASK 06）：MonopolyGame 垂直切片执行与验证闭环 ✅
+- M4（TASK 07）：兼容性清理、测试补录与最终验收 ✅
 
-## 进行中
+## 当前状态
 
-- **M3（TASK 06）**：MonopolyGame 垂直切片执行
-  - 执行者：Execution Agent
-  - 交接文档：`PhaseDoc/Phase8_M3_Handover_to_Execution_Agent.md`
-  - 14 个 Build Steps，6 个 Batch，12 个验证检查点
+- 当前没有未完成的 Phase 8 开发项。
+- Phase 8 收尾总览见 [10_Phase8_Closeout.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/Current/10_Phase8_Closeout.md)。
+- Phase 8 历史任务正文见 [task8_phase8.md](/D:/UnrealProjects/Mvpv4TestCodex/Docs/History/Tasks/task8_phase8.md)。
 
-## 待执行
+## 结转到下一阶段的事项
 
-- **M4（TASK 07）**：兼容性清理 + 最终验收
-  - 230 条系统测试回归
-  - v1 → v2 Handoff 兼容性确认
-  - 测试编号补录进总表
+- MCP Server 仍是占位骨架，后续可继续做可执行实现。
+- 若进入 Phase 9，应优先吸收 Phase 8 的运行时复盘与防回归清单。
+- 若扩展到联网多人，需要重新评估 `GameMode / GameState` 的复制设计。
 
 ## Phase 7 Carry-over 处置
 

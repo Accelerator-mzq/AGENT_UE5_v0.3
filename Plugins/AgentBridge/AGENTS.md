@@ -12,7 +12,7 @@
 
 AgentBridge 是一套面向不同 UE5 项目的**通用 Agent 开发框架插件**。它包含：
 
-- **Skill Compiler Plane**：从设计输入和项目现状编译出结构化图纸（`Scripts/compiler/`）
+- **Skill Compiler Plane**：从设计输入和项目现状编译出结构化图纸（legacy `Scripts/compiler/` + Phase 8 `Compiler/` 骨架）
 - **Reviewed Handoff**：Compiler 向 Orchestrator 的正式交接物
 - **Execution Orchestrator Plane**：基于 Run Plan 的执行编排（`Scripts/orchestrator/`）
 - **受控工具体系**：L1 语义工具 > L2 编辑器服务工具 > L3 UI 工具（`Source/AgentBridge/`）
@@ -23,6 +23,8 @@ AgentBridge 是一套面向不同 UE5 项目的**通用 Agent 开发框架插件
 Agent 不得直接执行不可控的 UE5 编辑器 GUI 操作。主干执行路径是受控工具路线（结构化参数 → 确定性 API → 可读回验证）。
 
 所有 UE5 操作都必须通过已批准的受控工具完成。
+
+如项目已进入 Phase 8 及之后的 Skill-First 流程，应结合 `Compiler/`、`SkillTemplates/` 与 `reviewed_handoff_v2.schema.json` 理解新链路，而不是只依赖 legacy `Scripts/compiler/` 目录。
 
 ---
 
